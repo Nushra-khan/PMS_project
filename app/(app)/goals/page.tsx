@@ -5,13 +5,12 @@ import { DataTable } from "@/components/data-table";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
 import { requireSession } from "@/lib/auth/session";
-import { demoWorkspace } from "@/lib/demo-data";
-import { getAccessibleGoals } from "@/lib/workflows/dashboard";
+import { getGoalPageData } from "@/lib/db/goals";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 export default async function GoalsPage() {
   const session = await requireSession();
-  const goals = getAccessibleGoals(session);
+  const { goals, updates } = await getGoalPageData(session);
 
   return (
     <AppShell
@@ -22,7 +21,7 @@ export default async function GoalsPage() {
       <SectionCard
         eyebrow="Create and govern"
         title="Goal portfolio"
-        description="The current build uses seeded data to validate hierarchy, status transitions, approval visibility, and weightage discipline before we switch every read to live Supabase tables."
+        description="This portfolio now reads from live PMS goal records so hierarchy, status transitions, approval visibility, and weightage discipline are reflected in the actual workspace."
       >
         <div className="mb-5 flex flex-wrap gap-3">
           <Link
@@ -41,20 +40,27 @@ export default async function GoalsPage() {
           )}
         </div>
 
-        <DataTable
-          headers={["Goal", "Scope", "Status", "Weightage", "Due date", "Progress"]}
-          rows={goals.map((goal) => [
-            <div key={`${goal.id}-goal`}>
-              <p className="font-medium text-ink">{goal.title}</p>
-              <p className="text-xs text-ink/55">{goal.summary}</p>
-            </div>,
-            goal.scope,
-            <StatusBadge key={`${goal.id}-status`} value={goal.status} />,
-            `${goal.weightage}%`,
-            formatDate(goal.dueDate),
-            `${goal.completionPct}%`
-          ])}
-        />
+        {goals.length === 0 ? (
+          <p className="rounded-3xl border border-dashed border-ink/15 bg-white/65 p-5 text-sm leading-7 text-ink/70">
+            No goal records are available yet. Create the first goal to start the
+            approval and progress workflow.
+          </p>
+        ) : (
+          <DataTable
+            headers={["Goal", "Scope", "Status", "Weightage", "Due date", "Progress"]}
+            rows={goals.map((goal) => [
+              <div key={`${goal.id}-goal`}>
+                <p className="font-medium text-ink">{goal.title}</p>
+                <p className="text-xs text-ink/55">{goal.summary}</p>
+              </div>,
+              goal.scope,
+              <StatusBadge key={`${goal.id}-status`} value={goal.status} />,
+              `${goal.weightage}%`,
+              formatDate(goal.dueDate),
+              `${goal.completionPct}%`
+            ])}
+          />
+        )}
       </SectionCard>
 
       <SectionCard
@@ -62,22 +68,37 @@ export default async function GoalsPage() {
         title="Progress notes and blockers"
         description="Goal updates are modeled as a first-class feed so reminders, blockers, nudges, and completions remain auditable."
       >
-        <div className="space-y-4">
-          {demoWorkspace.goalUpdates.map((update) => (
-            <article
-              key={update.id}
-              className="rounded-3xl border border-ink/10 bg-white/75 p-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <StatusBadge value={update.kind} />
-                <p className="text-xs uppercase tracking-[0.18em] text-ink/55">
-                  {formatDateTime(update.postedAt)}
-                </p>
-              </div>
-              <p className="mt-3 text-sm leading-7 text-ink/75">{update.body}</p>
-            </article>
-          ))}
-        </div>
+        {updates.length === 0 ? (
+          <p className="rounded-3xl border border-dashed border-ink/15 bg-white/65 p-5 text-sm leading-7 text-ink/70">
+            Progress updates will appear here once teams begin posting blockers,
+            nudges, and completion notes against live goals.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {updates.map((update) => (
+              <article
+                key={update.id}
+                className="rounded-3xl border border-ink/10 bg-white/75 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <StatusBadge value={update.kind} />
+                    <p className="mt-2 text-sm font-medium text-ink">
+                      {update.goalTitle}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-ink/65">{update.postedByName}</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-ink/55">
+                      {formatDateTime(update.postedAt)}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-ink/75">{update.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </SectionCard>
     </AppShell>
   );

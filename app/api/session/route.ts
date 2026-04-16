@@ -6,19 +6,16 @@ import {
 } from "@/lib/auth/session";
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const role = formData.get("role");
-  const userId = formData.get("userId");
-  const response = NextResponse.redirect(new URL("/dashboard", request.url));
+  const response = NextResponse.redirect(new URL("/login", request.url));
 
-  response.cookies.set(SESSION_ROLE_COOKIE, String(role), {
+  response.cookies.set(SESSION_ROLE_COOKIE, "", {
     httpOnly: true,
-    sameSite: "lax",
+    maxAge: 0,
     path: "/"
   });
-  response.cookies.set(SESSION_USER_COOKIE, String(userId), {
+  response.cookies.set(SESSION_USER_COOKIE, "", {
     httpOnly: true,
-    sameSite: "lax",
+    maxAge: 0,
     path: "/"
   });
 

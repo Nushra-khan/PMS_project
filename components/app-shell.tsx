@@ -152,13 +152,6 @@ export function AppShell({
             <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/70">
               {description}
             </p>
-            {session.sessionMode === "auth_preview" ? (
-              <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-7 text-amber-950">
-                You are signed in with real Supabase auth, but this account is still
-                viewing a seeded preview workspace until the live PMS profile and
-                tables are fully connected.
-              </div>
-            ) : null}
           </header>
           {children}
         </main>

@@ -5,17 +5,12 @@ import { DataTable } from "@/components/data-table";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
 import { requireSession } from "@/lib/auth/session";
-import { demoWorkspace, profiles } from "@/lib/demo-data";
-import { getAccessibleCycles } from "@/lib/workflows/dashboard";
+import { getReviewsPageData } from "@/lib/db/reviews";
 import { formatDate } from "@/lib/utils";
-
-function profileName(profileId: string) {
-  return profiles.find((profile) => profile.id === profileId)?.name ?? profileId;
-}
 
 export default async function ReviewsPage() {
   const session = await requireSession();
-  const cycles = getAccessibleCycles(session);
+  const { cycles, enrollments } = await getReviewsPageData(session);
 
   return (
     <AppShell
@@ -26,24 +21,30 @@ export default async function ReviewsPage() {
       <SectionCard
         eyebrow="Cycle overview"
         title="Visible cycles"
-        description="The page structure already accounts for cycle activation readiness, reminder cadence, and acting-reviewer support."
+        description="This page now reads live cycle and enrollment records so review readiness is tied to the actual workspace data."
       >
-        <DataTable
-          headers={["Cycle", "Window", "Trigger", "Close", "Details"]}
-          rows={cycles.map((cycle) => [
-            cycle.label,
-            cycle.goalWindowLabel,
-            formatDate(cycle.triggerDate),
-            formatDate(cycle.closeDate),
-            <Link
-              key={cycle.id}
-              href={`/reviews/${cycle.id}`}
-              className="text-sm font-medium text-tide underline-offset-4 hover:underline"
-            >
-              Open cycle
-            </Link>
-          ])}
-        />
+        {cycles.length === 0 ? (
+          <p className="rounded-3xl border border-dashed border-ink/15 bg-white/65 p-5 text-sm leading-7 text-ink/70">
+            No review cycles are visible in this workspace yet.
+          </p>
+        ) : (
+          <DataTable
+            headers={["Cycle", "Window", "Trigger", "Close", "Details"]}
+            rows={cycles.map((cycle) => [
+              cycle.label,
+              cycle.goalWindowLabel,
+              formatDate(cycle.triggerDate),
+              formatDate(cycle.closeDate),
+              <Link
+                key={cycle.id}
+                href={`/reviews/${cycle.id}`}
+                className="text-sm font-medium text-tide underline-offset-4 hover:underline"
+              >
+                Open cycle
+              </Link>
+            ])}
+          />
+        )}
       </SectionCard>
 
       <SectionCard
@@ -51,12 +52,16 @@ export default async function ReviewsPage() {
         title="Enrollment and discussion state"
         description="Discussion scheduling, self-review progress, and final ratings are kept on the same operational surface."
       >
-        <DataTable
-          headers={["Employee", "Cycle", "Review status", "Discussion", "Manager"]}
-          rows={demoWorkspace.cycleEnrollments
-            .filter((enrollment) => cycles.some((cycle) => cycle.id === enrollment.cycleId))
-            .map((enrollment) => [
-              profileName(enrollment.profileId),
+        {enrollments.length === 0 ? (
+          <p className="rounded-3xl border border-dashed border-ink/15 bg-white/65 p-5 text-sm leading-7 text-ink/70">
+            Cycle enrollments will appear here once employees are attached to live
+            review cycles.
+          </p>
+        ) : (
+          <DataTable
+            headers={["Employee", "Cycle", "Review status", "Discussion", "Manager"]}
+            rows={enrollments.map((enrollment) => [
+              enrollment.employeeName,
               enrollment.cycleId,
               <StatusBadge
                 key={`${enrollment.id}-status`}
@@ -66,9 +71,10 @@ export default async function ReviewsPage() {
                 key={`${enrollment.id}-discussion`}
                 value={enrollment.discussionStatus}
               />,
-              profileName(enrollment.managerProfileId)
+              enrollment.managerName
             ])}
-        />
+          />
+        )}
       </SectionCard>
     </AppShell>
   );

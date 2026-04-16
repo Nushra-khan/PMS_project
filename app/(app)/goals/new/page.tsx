@@ -1,18 +1,25 @@
 import { AppShell } from "@/components/app-shell";
 import { SectionCard } from "@/components/section-card";
+import { createGoalAction } from "@/app/(app)/goals/actions";
 import { requireSession } from "@/lib/auth/session";
-import { getAccessibleGoals } from "@/lib/workflows/dashboard";
+import { getGoalComposerData } from "@/lib/db/goals";
 
-export default async function NewGoalPage() {
+function bannerTone(status?: string) {
+  return status === "error"
+    ? "border-rose-200 bg-rose-50 text-rose-900"
+    : "border-emerald-200 bg-emerald-50 text-emerald-900";
+}
+
+export default async function NewGoalPage({
+  searchParams
+}: {
+  searchParams?: { status?: string; message?: string };
+}) {
   const session = await requireSession();
-  const myGoals = getAccessibleGoals(session).filter(
-    (goal) =>
-      goal.ownerProfileId === session.workspaceProfileId &&
-      goal.status !== "archived"
-  );
-  const committedWeightage = myGoals
-    .filter((goal) => goal.status === "active" || goal.status === "pending_approval")
-    .reduce((total, goal) => total + goal.weightage, 0);
+  const { myGoals, committedWeightage } = await getGoalComposerData(session);
+  const status = searchParams?.status;
+  const message = searchParams?.message;
+  const isEmployee = session.role === "employee";
 
   return (
     <AppShell
@@ -20,44 +27,64 @@ export default async function NewGoalPage() {
       title="Draft a goal proposal"
       description="This screen is shaped around the PRD rules: employees can draft and submit goals, while managers and Admin set or confirm weightage at approval time."
     >
+      {status && message ? (
+        <div className={`rounded-3xl border px-5 py-4 text-sm ${bannerTone(status)}`}>
+          {message}
+        </div>
+      ) : null}
+
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           eyebrow="Draft form"
-          title="Seeded goal composer"
-          description="The first implementation pass focuses on the information architecture and rule visibility so the later live form wiring can reuse the same shape."
+          title="Create a live goal"
+          description="This form now writes to the goal workflow directly. Employees can save drafts or submit for approval, while managers and Admin can create active goals when the weightage rules are satisfied."
         >
-          <form className="grid gap-4">
+          <form action={createGoalAction} className="grid gap-4">
             <label className="grid gap-2 text-sm font-medium text-ink">
               Goal title
               <input
+                name="title"
                 className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none ring-0"
                 placeholder="Example: Automate Day 30/60/80 probation reminders"
+                required
               />
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-ink">
               Goal summary
               <textarea
+                name="summary"
                 className="min-h-32 rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none ring-0"
                 placeholder="Describe the business outcome, dependencies, and review-cycle relevance."
+                required
               />
             </label>
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium text-ink">
                 Scope
-                <select className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none">
-                  <option>Individual</option>
-                  <option>Team</option>
-                  <option>Company</option>
+                <select
+                  name="scope"
+                  className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
+                  defaultValue={isEmployee ? "individual" : "team"}
+                >
+                  <option value="individual">Individual</option>
+                  {!isEmployee ? <option value="team">Team</option> : null}
+                  {!isEmployee ? <option value="company">Company</option> : null}
                 </select>
               </label>
 
               <label className="grid gap-2 text-sm font-medium text-ink">
-                Draft weightage
+                Proposed weightage
                 <input
+                  name="weightage"
+                  type="number"
+                  min={0}
+                  max={100}
                   className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none ring-0"
                   placeholder="0-100"
+                  defaultValue={0}
+                  required
                 />
               </label>
             </div>
@@ -65,16 +92,36 @@ export default async function NewGoalPage() {
             <label className="grid gap-2 text-sm font-medium text-ink">
               Due date
               <input
+                name="dueDate"
                 type="date"
                 className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none ring-0"
+                required
               />
             </label>
 
             <div className="rounded-3xl border border-dashed border-ink/15 bg-white/70 p-4 text-sm leading-7 text-ink/70">
-              Submission action will be wired next to a server action and audit
-              event writer. The surrounding rule system is already accounted for
-              in the data model: status changes, weightage enforcement,
-              escalations, and approval notes.
+              Live rules now apply on save: employee submissions route into the
+              approval queue, and manager or Admin direct activation is blocked
+              unless the active goal weightage totals exactly 100%.
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                name="intent"
+                value="draft"
+                className="rounded-full border border-ink/15 px-5 py-3 text-sm font-medium text-ink transition hover:bg-white/75"
+              >
+                Save draft
+              </button>
+              <button
+                type="submit"
+                name="intent"
+                value={isEmployee ? "submit" : "activate"}
+                className="rounded-full bg-ink px-5 py-3 text-sm font-medium text-white transition hover:bg-tide"
+              >
+                {isEmployee ? "Submit for approval" : "Create active goal"}
+              </button>
             </div>
           </form>
         </SectionCard>
@@ -98,17 +145,23 @@ export default async function NewGoalPage() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {myGoals.map((goal) => (
-              <article
-                key={goal.id}
-                className="rounded-3xl border border-ink/10 bg-white/70 p-4"
-              >
-                <p className="font-medium text-ink">{goal.title}</p>
-                <p className="mt-1 text-sm text-ink/65">
-                  {goal.weightage}% weightage • {goal.status}
-                </p>
-              </article>
-            ))}
+            {myGoals.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-ink/15 bg-white/65 p-4 text-sm leading-7 text-ink/70">
+                No personal goals exist yet for this cycle.
+              </div>
+            ) : (
+              myGoals.map((goal) => (
+                <article
+                  key={goal.id}
+                  className="rounded-3xl border border-ink/10 bg-white/70 p-4"
+                >
+                  <p className="font-medium text-ink">{goal.title}</p>
+                  <p className="mt-1 text-sm text-ink/65">
+                    {goal.weightage}% weightage / {goal.status}
+                  </p>
+                </article>
+              ))
+            )}
           </div>
         </SectionCard>
       </div>

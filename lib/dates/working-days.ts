@@ -2,26 +2,36 @@ import { addDays, isWeekend } from "date-fns";
 
 import { leavePeriods } from "@/lib/demo-data";
 
-function isWithinLeave(profileId: string, date: Date) {
-  return leavePeriods.some((period) => {
-    if (period.profileId !== profileId) {
-      return false;
-    }
+export type WorkingDayLeavePeriod = {
+  startDate: string;
+  endDate: string;
+};
 
+function isWithinLeave(date: Date, periods: WorkingDayLeavePeriod[]) {
+  return periods.some((period) => {
     const start = new Date(period.startDate);
     const end = new Date(period.endDate);
     return date >= start && date <= end;
   });
 }
 
-export function isWorkingDay(profileId: string, date: Date) {
-  return !isWeekend(date) && !isWithinLeave(profileId, date);
+function getDemoLeavePeriods(profileId: string) {
+  return leavePeriods
+    .filter((period) => period.profileId === profileId)
+    .map((period) => ({
+      startDate: period.startDate,
+      endDate: period.endDate
+    }));
 }
 
-export function addWorkingDaysForProfile(
-  profileId: string,
+export function isWorkingDay(date: Date, periods: WorkingDayLeavePeriod[] = []) {
+  return !isWeekend(date) && !isWithinLeave(date, periods);
+}
+
+export function addWorkingDays(
   startDate: string,
-  daysToAdd: number
+  daysToAdd: number,
+  periods: WorkingDayLeavePeriod[] = []
 ) {
   let cursor = new Date(startDate);
   let added = 0;
@@ -29,10 +39,22 @@ export function addWorkingDaysForProfile(
   while (added < daysToAdd) {
     cursor = addDays(cursor, 1);
 
-    if (isWorkingDay(profileId, cursor)) {
+    if (isWorkingDay(cursor, periods)) {
       added += 1;
     }
   }
 
   return cursor;
+}
+
+export function isWorkingDayForProfile(profileId: string, date: Date) {
+  return isWorkingDay(date, getDemoLeavePeriods(profileId));
+}
+
+export function addWorkingDaysForProfile(
+  profileId: string,
+  startDate: string,
+  daysToAdd: number
+) {
+  return addWorkingDays(startDate, daysToAdd, getDemoLeavePeriods(profileId));
 }

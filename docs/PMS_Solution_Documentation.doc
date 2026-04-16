@@ -1,0 +1,261 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}{\f1 Courier New;}}
+\viewkind4\uc1\pard\sa200\sl276\slmult1\lang1033\f0\fs24
+\b PMS Solution Documentation\b0\par
+Performance Management System (PMS)\par
+Prepared for solution delivery, implementation reference, and stakeholder review\par
+Date: 16 April 2026\par
+\par
+\b 1. Document Purpose\b0\par
+This document combines the product documentation, solution design, and system architecture for the PMS application. It is intended to serve as the primary reference for business stakeholders, engineering, QA, and operations while the product moves from prototype state into a production-ready internal platform.\par
+\par
+\b 2. Product Documentation\b0\par
+\b 2.1 Product Summary\b0\par
+The PMS application is a role-based internal platform designed to centralize goal management, probation monitoring, review cycles, feedback intelligence, HR oversight, and audit-heavy workflow operations. The system supports employees, managers, and HR Admin users inside one secure application.\par
+\par
+\b 2.2 Business Problem\b0\par
+Many performance processes are typically fragmented across spreadsheets, email threads, manual follow-ups, and disconnected forms. This creates poor visibility, inconsistent approval cycles, weak auditability, and delayed HR intervention. The PMS solution addresses this by creating one application for structured workflow execution and monitoring.\par
+\par
+\b 2.3 Product Objectives\b0\par
+1. Centralize goal creation, approval, and performance visibility.\par
+2. Track probation milestones using structured checkpoints and workflow state.\par
+3. Manage review cycles for employee self-reviews and manager reviews.\par
+4. Surface feedback risk through flagging and HR oversight.\par
+5. Maintain auditable workflow records for sensitive HR decisions.\par
+6. Enforce role-based access and operational control.\par
+\par
+\b 2.4 Primary User Roles\b0\par
+1. Employee\par
+Creates goals, submits self-feedback, participates in probation checkpoints, submits self-reviews, and views personal workflow status.\par
+2. Manager\par
+Reviews and approves employee goals, submits manager reviews, participates in probation feedback, tracks direct-report performance state, and manages discussion progress.\par
+3. Admin (HR)\par
+Monitors the full system, reviews exceptions, records probation decisions, manages settings, supervises review readiness, resolves flagged workflows, and owns operational governance.\par
+\par
+\b 2.5 Core Functional Scope\b0\par
+The solution is designed around the following functional areas:\par
+1. Authentication and role-based access control\par
+2. Goal Management System (goal drafting, submission, approval, and tracking)\par
+3. Probation monitoring and checkpoint workflows\par
+4. Performance review cycles and review submissions\par
+5. Flag management and linked feedback context\par
+6. Admin settings and operational control surfaces\par
+7. Notification queue and audit logging\par
+\par
+\b 2.6 Key User Flows\b0\par
+\b Goal lifecycle\b0\par
+Employee drafts a goal, submits it for approval, manager or Admin reviews it, and the goal becomes active when accepted.\par
+\par
+\b Review lifecycle\b0\par
+Employees submit self-reviews for a cycle, managers submit manager reviews, and managers or Admin update discussion status to track readiness and completion.\par
+\par
+\b Probation lifecycle\b0\par
+Employees and managers submit checkpoint feedback, the system cross-shares the feedback when both sides submit, and Admin records the final decision against the probation case.\par
+\par
+\b Flag lifecycle\b0\par
+Low-score or blank-response feedback creates live flags, managers or Admin review the item, and the flag can move to under review, escalated, or resolved.\par
+\par
+\b 2.7 Product Constraints and Expectations\b0\par
+1. All app routes must be protected behind authentication.\par
+2. Role-based visibility must be enforced for every workflow.\par
+3. Sensitive actions must be auditable.\par
+4. Data should degrade gracefully if the database is unavailable.\par
+5. The platform must remain usable for employees, managers, and Admin without exposing cross-role data incorrectly.\par
+\par
+\b 2.8 Current Product Status\b0\par
+The current solution has moved beyond static prototype pages. Major role-based routes now read live data, and core workflow mutations are implemented for goals, reviews, probation submissions, flag actions, and Admin settings. Some advanced automation capabilities such as scheduled triggers and outbound email delivery are still future work.\par
+\par
+\b 3. Architecture Documentation\b0\par
+\b 3.1 Architecture Overview\b0\par
+The PMS is implemented as a server-rendered web application using Next.js with App Router. Authentication is handled through Supabase Auth. Operational workflow data is stored in PostgreSQL through the Supabase-managed database. Server actions are used to perform workflow mutations. Audit, notification, and flag generation are handled inside the application service layer.\par
+\par
+\b 3.2 Technology Stack\b0\par
+1. Frontend and server-rendered application: Next.js 14, React 18, TypeScript\par
+2. Styling: Tailwind CSS\par
+3. Authentication: Supabase Auth\par
+4. Database: PostgreSQL via Supabase / direct pg connection\par
+5. Data access layer: custom TypeScript DB modules using pg pool\par
+6. Validation: Zod\par
+\par
+\b 3.3 High-Level Architecture\b0\par
+\f1\fs20
++------------------+        +--------------------+        +----------------------+\par
+| Browser / Client | <----> | Next.js App Router | <----> | Supabase Auth        |\par
++------------------+        +--------------------+        +----------------------+\par
+                                  |\par
+                                  |\par
+                                  v\par
+                           +--------------------+\par
+                           | Server Actions     |\par
+                           | DB Query Modules    |\par
+                           +--------------------+\par
+                                  |\par
+                                  v\par
+                           +--------------------+\par
+                           | PostgreSQL          |\par
+                           | profiles            |\par
+                           | goals               |\par
+                           | reviews             |\par
+                           | probation           |\par
+                           | flags               |\par
+                           | notifications       |\par
+                           | audit_logs          |\par
+                           +--------------------+\par
+\f0\fs24
+\par
+\b 3.4 Runtime Request Flow\b0\par
+1. User opens a protected route.\par
+2. Middleware and session logic validate authentication.\par
+3. Session service resolves the PMS profile and role.\par
+4. Route calls the relevant DB module to fetch live data.\par
+5. Page renders server-side HTML for the authenticated workspace.\par
+6. When a form is submitted, a server action validates the payload and updates workflow tables.\par
+7. Workflow action also writes audit logs, notifications, and other side effects.\par
+8. The route is revalidated so the user sees updated state.\par
+\par
+\b 3.5 Major Application Layers\b0\par
+\b Presentation layer\b0\par
+App Router pages and shared UI components render workspace screens and forms.\par
+\par
+\b Authentication layer\b0\par
+Supabase-based session logic resolves the current user and applicable role.\par
+\par
+\b Workflow service layer\b0\par
+DB modules in the application coordinate business rules for goals, reviews, probation, flags, settings, notifications, and audits.\par
+\par
+\b Persistence layer\b0\par
+PostgreSQL stores system entities such as profiles, user_roles, goals, review_cycles, cycle_enrollments, probation_cases, feedback_submissions, flags, notifications, and audit_logs.\par
+\par
+\b 3.6 Core Data Domains\b0\par
+1. Identity and access\par
+profiles, user_roles, manager_assignments\par
+2. Goal management\par
+goals, goal_updates, goal_approval_events\par
+3. Review cycle operations\par
+review_cycles, cycle_enrollments, review_submissions\par
+4. Probation operations\par
+probation_cases, probation_checkpoints, feedback_requests, feedback_submissions, probation_decisions\par
+5. Risk and governance\par
+flags, flag_actions, notifications, notification_deliveries, audit_logs, app_settings\par
+\par
+\b 3.7 Security and Access Control\b0\par
+1. All operational pages require sign-in.\par
+2. Server session resolution enforces role-aware route entry.\par
+3. Database row-level security is defined for major entities.\par
+4. App logic also enforces business permissions before writes.\par
+5. Admin-only actions include settings updates and probation decisions.\par
+6. Manager actions are limited to direct reports or approved oversight scope.\par
+\par
+\b 3.8 Resilience Strategy\b0\par
+The application uses graceful fallback behavior for read-side database calls. If PostgreSQL is unreachable, read models fail safely and return empty or fallback values instead of crashing the page. A connection backoff mechanism prevents repeated connection attempts from degrading every route render during database outages.\par
+\par
+\b 3.9 Known Architecture Limitations\b0\par
+1. Scheduled job execution for reminder automation is not yet implemented.\par
+2. Real outbound email sending is modeled in notifications and delivery records, but mail transport is not yet integrated.\par
+3. Some dashboard pages still make multiple DB calls that can be optimized further through aggregation.\par
+\par
+\b 4. Solution Design Document\b0\par
+\b 4.1 Design Principles\b0\par
+1. One workspace, multiple role views\par
+2. Explicit workflow state over implicit assumptions\par
+3. Auditable write paths for sensitive operations\par
+4. Server-side validation before any workflow mutation\par
+5. Clear degradation when infrastructure is unavailable\par
+\par
+\b 4.2 Module Design\b0\par
+\b Session and auth\b0\par
+The session layer resolves the authenticated Supabase user into a PMS application session. If a matching profile exists, live role-aware access is used. If a profile is missing, the provisioning path attempts to create one using the connected database.\par
+\par
+\b Goal module\b0\par
+The goal module supports live goal retrieval, personal goal composition, approval queue retrieval, goal creation, and goal approval or rejection. Weightage rules are enforced before active approval is completed. Goal actions also write audit logs and notifications.\par
+\par
+\b Review module\b0\par
+The review module supports live cycle visibility, cycle detail loading, self-review submission, manager-review submission, and discussion-status updates. Enrollment review state is recalculated based on submitted artifacts and discussion progress.\par
+\par
+\b Probation module\b0\par
+The probation module loads cases, checkpoints, submissions, decisions, and timelines. It supports employee and manager checkpoint submissions, updates cross-share state when both sides submit, creates flags for concerning feedback, and allows Admin to record final probation decisions.\par
+\par
+\b Flag module\b0\par
+The flag module reads live flags and linked feedback submissions, and supports workflow updates from manager or Admin such as under review, escalated, and resolved. Flag updates create flag actions, notifications, and audit records.\par
+\par
+\b Admin settings module\b0\par
+The settings module reads and updates workflow control values such as red-flag threshold, goal approval escalation days, probation escalation days, and Admin ownership configuration.\par
+\par
+\b Workflow event module\b0\par
+This shared module encapsulates notification queue creation, audit log creation, and feedback-based flag generation so business events are handled consistently across modules.\par
+\par
+\b 4.3 Key Workflows\b0\par
+\b Goal submission and approval\b0\par
+1. Employee creates a goal draft or submits for approval.\par
+2. Goal is stored with draft or pending approval status.\par
+3. Manager or Admin reviews the goal in the approval queue.\par
+4. Weightage is validated before activation.\par
+5. Approval or rejection is recorded as an event.\par
+6. Audit and notification records are written.\par
+\par
+\b Review submission workflow\b0\par
+1. Employee opens cycle detail and submits self review.\par
+2. Review submission is stored with submitted status.\par
+3. Manager or Admin submits the manager review.\par
+4. Discussion state can be marked scheduled or completed.\par
+5. Enrollment status updates based on combined workflow progress.\par
+6. Audit and notification side effects are recorded.\par
+\par
+\b Probation feedback workflow\b0\par
+1. Employee or manager submits checkpoint feedback.\par
+2. Submission is stored against the checkpoint.\par
+3. Feedback request records are updated.\par
+4. If the counterpart has not submitted, checkpoint waits for the other side.\par
+5. If both sides have submitted, checkpoint moves to shared state.\par
+6. Low-score or blank feedback can generate flags.\par
+7. Admin can later record the probation decision.\par
+\par
+\b Flag review workflow\b0\par
+1. Flag is created automatically from concerning feedback.\par
+2. Manager or Admin opens the flag queue.\par
+3. Reviewer moves the item into under review, escalated, or resolved.\par
+4. Flag action and audit history are recorded.\par
+5. Notifications are queued for important status changes.\par
+\par
+\b 4.4 Non-Functional Design Considerations\b0\par
+1. Role-based security is enforced at route, service, and database layers.\par
+2. Input validation is implemented using Zod.\par
+3. Connection fallback is used to avoid UI crashes during DB outages.\par
+4. Type-safe modules improve maintainability and reduce regression risk.\par
+5. Server actions keep sensitive workflow logic off the client.\par
+\par
+\b 4.5 Current Implemented Capabilities\b0\par
+1. Auth-only access to the PMS application\par
+2. Live dashboard reads\par
+3. Live goals list and goal submission / approval flow\par
+4. Live review cycle visibility and review submission actions\par
+5. Live probation visibility and feedback submission actions\par
+6. Live flag queue and flag status actions\par
+7. Live Admin settings update form\par
+8. Audit and notification queue writes on workflow mutations\par
+\par
+\b 4.6 Remaining Enhancements\b0\par
+1. Automated scheduler for Day 30 / 60 / 80 probation triggers\par
+2. Automated reminder cadence and Admin escalations based on elapsed days\par
+3. Real email sending integration using notification delivery records\par
+4. Goal editing, resubmission, progress updates, and archival flows\par
+5. Review-cycle waiver, extension, and acting-reviewer support\par
+6. Advanced dashboard aggregation and reporting exports\par
+7. Additional tests for regression coverage across workflow actions\par
+\par
+\b 5. Suggested Delivery Roadmap\b0\par
+\b Phase 1: Core stability\b0\par
+Improve data availability handling, reduce repeated connection costs, and stabilize current live workflows.\par
+\par
+\b Phase 2: Automation\b0\par
+Add scheduled trigger generation for probation and reminder/escalation workflows.\par
+\par
+\b Phase 3: Messaging\b0\par
+Integrate email delivery provider and connect notification delivery status updates.\par
+\par
+\b Phase 4: Reporting and analytics\b0\par
+Add cross-module reporting, HR exports, and richer dashboard analytics.\par
+\par
+\b 6. Conclusion\b0\par
+The PMS solution has evolved from a seeded prototype into a live role-based workflow platform with meaningful operational behavior across goals, review cycles, probation, flag management, Admin settings, audit logging, and notification queueing. The foundation is strong enough for continued delivery, with the next major value coming from automation, reporting, and external communication integrations.\par
+}

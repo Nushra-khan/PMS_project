@@ -63,7 +63,7 @@ export function AuthPanel() {
       options: {
         data: {
           full_name: fullName,
-          preview_role: role
+          role
         }
       }
     });
@@ -124,9 +124,9 @@ export function AuthPanel() {
       </div>
 
       <p className="mt-4 text-sm leading-7 text-ink/70">
-        This uses Supabase email/password auth. Until the live PMS tables are fully
-        connected for your account, authenticated users will still see a preview
-        workspace for their selected role.
+        Use your email and password to access the PMS workspace. Every protected
+        route in the app now requires authentication before any dashboard or data
+        can be viewed.
       </p>
 
       <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
@@ -144,7 +144,7 @@ export function AuthPanel() {
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-ink">
-              Preview workspace role
+              Role
               <select
                 value={role}
                 onChange={(event) => setRole(event.target.value as Role)}

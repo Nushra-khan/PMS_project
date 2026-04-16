@@ -39,7 +39,7 @@ APP_URL=http://localhost:3000
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) and choose one of the seeded role identities on the login page.
+4. Open [http://localhost:3000](http://localhost:3000) and sign in or create an account on the authentication screen.
 
 ## Database setup
 

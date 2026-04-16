@@ -1,8 +1,7 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { User } from "@supabase/supabase-js";
 
-import { demoProfilesByRole, profiles } from "@/lib/demo-data";
+import { ensureProfileForUser } from "@/lib/db/provisioning";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppSession, Profile, Role } from "@/lib/types";
 
@@ -38,24 +37,19 @@ function roleFromUser(user: User): Role {
   return "employee";
 }
 
-function previewWorkspaceProfileId(role: Role) {
-  return demoProfilesByRole[role][0]?.id ?? profiles[0]?.id ?? role;
-}
-
-function buildPreviewProfile(user: User, role: Role): Profile {
-  const demoPersona = demoProfilesByRole[role][0];
+function buildAuthenticatedProfile(user: User, role: Role): Profile {
   const fallbackName = user.email?.split("@")[0] ?? "User";
 
   return {
     id: user.id,
-    name: user.user_metadata.full_name ?? demoPersona?.name ?? fallbackName,
-    email: user.email ?? demoPersona?.email ?? "",
+    name: user.user_metadata.full_name ?? fallbackName,
+    email: user.email ?? "",
     title: roleLabel(role),
-    department: demoPersona?.department ?? "Pending setup",
-    teamId: demoPersona?.teamId ?? "preview-team",
-    reviewTrack: demoPersona?.reviewTrack ?? "biannual",
+    department: "Pending setup",
+    teamId: "unassigned",
+    reviewTrack: "biannual",
     roles: [role],
-    managerId: demoPersona?.managerId,
+    managerId: undefined,
     dateOfJoining: new Date().toISOString().slice(0, 10)
   };
 }
@@ -123,46 +117,45 @@ async function getLiveSessionFromSupabase(): Promise<AppSession | null> {
         }
       };
     }
+
+    if (profileError || !profileRow) {
+      const provisioned = await ensureProfileForUser(user, metadataRole);
+
+      if (provisioned) {
+        const resolvedRole =
+          provisioned.roles.find((role) => role === metadataRole) ??
+          provisioned.roles[0] ??
+          metadataRole;
+
+        return {
+          role: resolvedRole,
+          userId: provisioned.profile.id,
+          workspaceProfileId: provisioned.profile.id,
+          sessionMode: "live",
+          authUserId: user.id,
+          profile: {
+            ...provisioned.profile,
+            roles: provisioned.roles.length > 0 ? provisioned.roles : [resolvedRole]
+          }
+        };
+      }
+    }
   } catch {
-    // If the live profile tables are not reachable yet, fall back to auth preview mode.
+    // If live profile provisioning is not reachable yet, fall back to auth metadata.
   }
 
   return {
     role: metadataRole,
     userId: user.id,
-    workspaceProfileId: previewWorkspaceProfileId(metadataRole),
-    sessionMode: "auth_preview",
+    workspaceProfileId: user.id,
+    sessionMode: "authenticated",
     authUserId: user.id,
-    profile: buildPreviewProfile(user, metadataRole)
-  };
-}
-
-function getDemoSession(): AppSession | null {
-  const cookieStore = cookies();
-  const role = cookieStore.get(SESSION_ROLE_COOKIE)?.value;
-  const userId = cookieStore.get(SESSION_USER_COOKIE)?.value;
-
-  if (!isRole(role) || !userId) {
-    return null;
-  }
-
-  const profile = profiles.find((entry) => entry.id === userId);
-
-  if (!profile || !profile.roles.includes(role)) {
-    return null;
-  }
-
-  return {
-    role,
-    userId,
-    workspaceProfileId: userId,
-    sessionMode: "demo",
-    profile
+    profile: buildAuthenticatedProfile(user, metadataRole)
   };
 }
 
 export async function getSession(): Promise<AppSession | null> {
-  return (await getLiveSessionFromSupabase()) ?? getDemoSession();
+  return getLiveSessionFromSupabase();
 }
 
 export async function requireSession(allowedRoles?: Role[]) {

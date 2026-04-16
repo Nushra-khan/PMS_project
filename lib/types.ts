@@ -222,7 +222,7 @@ export interface AppSession {
   role: Role;
   userId: string;
   workspaceProfileId: string;
-  sessionMode: "demo" | "auth_preview" | "live";
+  sessionMode: "authenticated" | "live";
   authUserId?: string;
   profile: Profile;
 }
