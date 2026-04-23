@@ -20,13 +20,16 @@ import {
   ReviewSubmission
 } from "@/lib/types";
 
-export type ReviewCycleRecord = ReviewCycle;
+export type ReviewCycleRecord = ReviewCycle & {
+  isActive: boolean;
+};
 
 export type CycleEnrollmentRecord = CycleEnrollment & {
   employeeName: string;
   employeeEmail: string;
   managerName: string;
   managerEmail: string;
+  cycleLabel: string;
 };
 
 export type ReviewSubmissionRecord = ReviewSubmission & {
@@ -45,9 +48,27 @@ export type CycleDetailPageData = {
   submissions: ReviewSubmissionRecord[];
 };
 
+export type ReviewReviewerOption = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type ReviewEnrollmentProfileOption = {
+  id: string;
+  name: string;
+  email: string;
+  title: string;
+  department: string;
+  managerProfileId?: string;
+  managerName?: string;
+};
+
 type EnrollmentContext = CycleEnrollmentRecord & {
   cycleLabel: string;
 };
+
+type CycleContext = ReviewCycleRecord;
 
 function mapCycleRow(row: {
   id: string;
@@ -57,6 +78,7 @@ function mapCycleRow(row: {
   trigger_date: string | Date;
   close_date: string | Date;
   finalize_from: string | Date | null;
+  is_active: boolean;
 }) {
   return {
     id: row.id,
@@ -65,7 +87,8 @@ function mapCycleRow(row: {
     goalWindowLabel: row.goal_window_label,
     triggerDate: toDateOnly(row.trigger_date) ?? "",
     closeDate: toDateOnly(row.close_date) ?? "",
-    finalizeFrom: toDateOnly(row.finalize_from)
+    finalizeFrom: toDateOnly(row.finalize_from),
+    isActive: row.is_active
   } satisfies ReviewCycleRecord;
 }
 
@@ -81,6 +104,7 @@ function mapEnrollmentRow(row: {
   employee_email: string;
   manager_name: string;
   manager_email: string;
+  cycle_label: string;
 }) {
   return {
     id: row.id,
@@ -93,7 +117,8 @@ function mapEnrollmentRow(row: {
     employeeName: row.employee_name,
     employeeEmail: row.employee_email,
     managerName: row.manager_name,
-    managerEmail: row.manager_email
+    managerEmail: row.manager_email,
+    cycleLabel: row.cycle_label
   } satisfies CycleEnrollmentRecord;
 }
 
@@ -148,9 +173,10 @@ async function getAccessibleCycleRows(session: AppSession) {
         trigger_date: string | Date;
         close_date: string | Date;
         finalize_from: string | Date | null;
+        is_active: boolean;
       }>(
         `
-          select id, label, cycle_type, goal_window_label, trigger_date, close_date, finalize_from
+          select id, label, cycle_type, goal_window_label, trigger_date, close_date, finalize_from, is_active
           from public.review_cycles
           order by trigger_date desc
         `
@@ -175,6 +201,7 @@ async function getAccessibleCycleRows(session: AppSession) {
       trigger_date: string | Date;
       close_date: string | Date;
       finalize_from: string | Date | null;
+      is_active: boolean;
     }>(
       `
         select distinct
@@ -184,7 +211,8 @@ async function getAccessibleCycleRows(session: AppSession) {
           cycles.goal_window_label,
           cycles.trigger_date,
           cycles.close_date,
-          cycles.finalize_from
+          cycles.finalize_from,
+          cycles.is_active
         from public.review_cycles cycles
         join public.cycle_enrollments enrollments on enrollments.cycle_id = cycles.id
         where enrollments.profile_id = any($1::uuid[])
@@ -212,6 +240,7 @@ async function getEnrollmentRows(session: AppSession, cycleId?: string) {
         employee_email: string;
         manager_name: string;
         manager_email: string;
+        cycle_label: string;
       }>(
         `
           select
@@ -225,10 +254,12 @@ async function getEnrollmentRows(session: AppSession, cycleId?: string) {
             employee.full_name as employee_name,
             employee.email as employee_email,
             manager.full_name as manager_name,
-            manager.email as manager_email
+            manager.email as manager_email,
+            cycles.label as cycle_label
           from public.cycle_enrollments enrollments
           join public.profiles employee on employee.id = enrollments.profile_id
           join public.profiles manager on manager.id = enrollments.manager_profile_id
+          join public.review_cycles cycles on cycles.id = enrollments.cycle_id
           where ($1::uuid is null or enrollments.cycle_id = $1)
           order by employee.full_name asc
         `,
@@ -258,6 +289,7 @@ async function getEnrollmentRows(session: AppSession, cycleId?: string) {
       employee_email: string;
       manager_name: string;
       manager_email: string;
+      cycle_label: string;
     }>(
       `
         select
@@ -271,10 +303,12 @@ async function getEnrollmentRows(session: AppSession, cycleId?: string) {
           employee.full_name as employee_name,
           employee.email as employee_email,
           manager.full_name as manager_name,
-          manager.email as manager_email
+          manager.email as manager_email,
+          cycles.label as cycle_label
         from public.cycle_enrollments enrollments
         join public.profiles employee on employee.id = enrollments.profile_id
         join public.profiles manager on manager.id = enrollments.manager_profile_id
+        join public.review_cycles cycles on cycles.id = enrollments.cycle_id
         where enrollments.profile_id = any($1::uuid[])
           and ($2::uuid is null or enrollments.cycle_id = $2)
         order by employee.full_name asc
@@ -427,6 +461,43 @@ async function getEnrollmentContext(
   } satisfies EnrollmentContext;
 }
 
+async function getCycleContext(client: PoolClient, cycleId: string) {
+  const result = await client.query<{
+    id: string;
+    label: string;
+    cycle_type: ReviewCycle["cycleType"];
+    goal_window_label: string;
+    trigger_date: string | Date;
+    close_date: string | Date;
+    finalize_from: string | Date | null;
+    is_active: boolean;
+  }>(
+    `
+      select
+        id,
+        label,
+        cycle_type,
+        goal_window_label,
+        trigger_date,
+        close_date,
+        finalize_from,
+        is_active
+      from public.review_cycles
+      where id = $1
+      limit 1
+    `,
+    [cycleId]
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return mapCycleRow(row) satisfies CycleContext;
+}
+
 async function getSubmissionPresence(
   client: PoolClient,
   cycleId: string,
@@ -561,6 +632,84 @@ async function upsertReviewSubmission(
   );
 
   return insertResult.rows[0]?.id ?? null;
+}
+
+async function isEligibleReviewer(client: PoolClient, profileId: string) {
+  const result = await client.query<{ profile_id: string }>(
+    `
+      select distinct profile_id
+      from public.user_roles
+      where profile_id = $1
+        and role in ('manager', 'admin')
+      limit 1
+    `,
+    [profileId]
+  );
+
+  return Boolean(result.rows[0]);
+}
+
+export async function getReviewReviewerOptions() {
+  return runWithClient<ReviewReviewerOption[]>([], async (client) => {
+    const result = await client.query<{
+      id: string;
+      full_name: string;
+      email: string;
+    }>(
+      `
+        select distinct profiles.id, profiles.full_name, profiles.email
+        from public.profiles
+        join public.user_roles on user_roles.profile_id = profiles.id
+        where user_roles.role in ('manager', 'admin')
+        order by profiles.full_name asc
+      `
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.full_name,
+      email: row.email
+    }));
+  });
+}
+
+export async function getReviewEnrollmentProfileOptions() {
+  return runWithClient<ReviewEnrollmentProfileOption[]>([], async (client) => {
+    const result = await client.query<{
+      id: string;
+      full_name: string;
+      email: string;
+      title: string;
+      department: string;
+      manager_profile_id: string | null;
+      manager_name: string | null;
+    }>(
+      `
+        select
+          profile.id,
+          profile.full_name,
+          profile.email,
+          profile.title,
+          profile.department,
+          profile.manager_profile_id,
+          manager.full_name as manager_name
+        from public.profiles profile
+        left join public.profiles manager on manager.id = profile.manager_profile_id
+        where profile.is_active = true
+        order by profile.full_name asc
+      `
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.full_name,
+      email: row.email,
+      title: row.title,
+      department: row.department,
+      managerProfileId: row.manager_profile_id ?? undefined,
+      managerName: row.manager_name ?? undefined
+    }));
+  });
 }
 
 export async function getReviewsPageData(session: AppSession): Promise<ReviewsPageData> {
@@ -808,4 +957,583 @@ export async function updateDiscussionStatus(
         ? `${enrollment.employeeName} now has a scheduled review discussion in ${enrollment.cycleLabel}.`
         : `${enrollment.employeeName} completed the review discussion in ${enrollment.cycleLabel}.`
   });
+}
+
+export async function createReviewCycle(
+  client: PoolClient,
+  session: AppSession,
+  input: {
+    label: string;
+    cycleType: ReviewCycle["cycleType"];
+    goalWindowLabel: string;
+    triggerDate: string;
+    closeDate: string;
+    finalizeFrom?: string;
+    isActive: boolean;
+  }
+) {
+  if (session.role !== "admin") {
+    throw new Error("Only Admin can create review cycles.");
+  }
+
+  if (input.closeDate < input.triggerDate) {
+    throw new Error("Close date cannot be earlier than the cycle trigger date.");
+  }
+
+  if (input.finalizeFrom && input.finalizeFrom < input.closeDate) {
+    throw new Error("Finalize-from date cannot be earlier than the close date.");
+  }
+
+  const existingResult = await client.query<{ id: string }>(
+    `
+      select id
+      from public.review_cycles
+      where lower(label) = lower($1)
+      limit 1
+    `,
+    [input.label]
+  );
+
+  if (existingResult.rows[0]) {
+    throw new Error("A review cycle with this label already exists.");
+  }
+
+  if (input.isActive) {
+    await client.query("update public.review_cycles set is_active = false");
+  }
+
+  const result = await client.query<{ id: string }>(
+    `
+      insert into public.review_cycles (
+        label,
+        cycle_type,
+        goal_window_label,
+        trigger_date,
+        close_date,
+        finalize_from,
+        is_active
+      )
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id
+    `,
+    [
+      input.label,
+      input.cycleType,
+      input.goalWindowLabel,
+      input.triggerDate,
+      input.closeDate,
+      input.finalizeFrom ?? null,
+      input.isActive
+    ]
+  );
+
+  const cycleId = result.rows[0]?.id;
+
+  if (!cycleId) {
+    throw new Error("Review cycle could not be created.");
+  }
+
+  await insertAuditLog(client, {
+    actorProfileId: session.userId,
+    entityType: "review_cycle",
+    entityId: cycleId,
+    action: "create_cycle",
+    summary: `Admin created review cycle ${input.label}.`,
+    metadata: {
+      cycleType: input.cycleType,
+      goalWindowLabel: input.goalWindowLabel,
+      triggerDate: input.triggerDate,
+      closeDate: input.closeDate,
+      finalizeFrom: input.finalizeFrom ?? "",
+      isActive: input.isActive
+    }
+  });
+
+  await queueNotification(client, {
+    audienceRole: "admin",
+    title: "Review cycle created",
+    body: `${input.label} is now configured${input.isActive ? " as the active review cycle" : ""}.`
+  });
+
+  return cycleId;
+}
+
+export async function updateReviewCycleSchedule(
+  client: PoolClient,
+  session: AppSession,
+  input: {
+    cycleId: string;
+    closeDate: string;
+    finalizeFrom?: string;
+    isActive: boolean;
+  }
+) {
+  if (session.role !== "admin") {
+    throw new Error("Only Admin can update review cycle schedules.");
+  }
+
+  const cycle = await getCycleContext(client, input.cycleId);
+
+  if (!cycle) {
+    throw new Error("Review cycle was not found.");
+  }
+
+  if (input.closeDate < cycle.triggerDate) {
+    throw new Error("Close date cannot be earlier than the cycle trigger date.");
+  }
+
+  if (input.finalizeFrom && input.finalizeFrom < input.closeDate) {
+    throw new Error("Finalize-from date cannot be earlier than the close date.");
+  }
+
+  if (input.isActive) {
+    await client.query(
+      `
+        update public.review_cycles
+        set is_active = false
+        where id <> $1
+      `,
+      [cycle.id]
+    );
+  }
+
+  await client.query(
+    `
+      update public.review_cycles
+      set
+        close_date = $2,
+        finalize_from = $3,
+        is_active = $4
+      where id = $1
+    `,
+    [cycle.id, input.closeDate, input.finalizeFrom ?? null, input.isActive]
+  );
+
+  await insertAuditLog(client, {
+    actorProfileId: session.userId,
+    entityType: "review_cycle",
+    entityId: cycle.id,
+    action: "update_schedule",
+    summary: `Admin updated the schedule for ${cycle.label}.`,
+    metadata: {
+      closeDate: input.closeDate,
+      finalizeFrom: input.finalizeFrom ?? "",
+      isActive: input.isActive
+    }
+  });
+
+  await queueNotification(client, {
+    audienceRole: "admin",
+    title: "Cycle schedule updated",
+    body: `${cycle.label} now closes on ${input.closeDate}${input.finalizeFrom ? ` with finalization from ${input.finalizeFrom}` : ""}.`
+  });
+}
+
+async function getEnrollmentProfileContext(client: PoolClient, profileId: string) {
+  const result = await client.query<{
+    id: string;
+    full_name: string;
+    email: string;
+    manager_profile_id: string | null;
+    manager_name: string | null;
+    manager_email: string | null;
+    assignment_manager_profile_id: string | null;
+    assignment_manager_name: string | null;
+    assignment_manager_email: string | null;
+  }>(
+    `
+      select
+        profile.id,
+        profile.full_name,
+        profile.email,
+        profile.manager_profile_id,
+        manager.full_name as manager_name,
+        manager.email as manager_email,
+        assignment.manager_profile_id as assignment_manager_profile_id,
+        assignment_manager.full_name as assignment_manager_name,
+        assignment_manager.email as assignment_manager_email
+      from public.profiles profile
+      left join public.profiles manager on manager.id = profile.manager_profile_id
+      left join lateral (
+        select manager_profile_id
+        from public.manager_assignments
+        where employee_profile_id = profile.id
+          and is_primary = true
+          and (effective_to is null or effective_to >= current_date)
+        order by effective_from desc
+        limit 1
+      ) assignment on true
+      left join public.profiles assignment_manager
+        on assignment_manager.id = assignment.manager_profile_id
+      where profile.id = $1
+        and profile.is_active = true
+      limit 1
+    `,
+    [profileId]
+  );
+
+  return result.rows[0] ?? null;
+}
+
+export async function enrollReviewCycleParticipants(
+  client: PoolClient,
+  session: AppSession,
+  input: {
+    cycleId: string;
+    profileIds: string[];
+    managerProfileId?: string;
+  }
+) {
+  if (session.role !== "admin") {
+    throw new Error("Only Admin can enroll people into review cycles.");
+  }
+
+  const cycle = await getCycleContext(client, input.cycleId);
+
+  if (!cycle) {
+    throw new Error("Review cycle was not found.");
+  }
+
+  const uniqueProfileIds = Array.from(new Set(input.profileIds));
+
+  if (uniqueProfileIds.length === 0) {
+    throw new Error("Select at least one employee to enroll.");
+  }
+
+  if (input.managerProfileId) {
+    const eligibleReviewer = await isEligibleReviewer(client, input.managerProfileId);
+
+    if (!eligibleReviewer) {
+      throw new Error("Selected reviewer is not eligible for review administration.");
+    }
+  }
+
+  const enrolledNames: string[] = [];
+
+  for (const profileId of uniqueProfileIds) {
+    const profile = await getEnrollmentProfileContext(client, profileId);
+
+    if (!profile) {
+      throw new Error("One selected profile is inactive or no longer exists.");
+    }
+
+    const managerProfileId =
+      input.managerProfileId ??
+      profile.manager_profile_id ??
+      profile.assignment_manager_profile_id;
+
+    if (!managerProfileId) {
+      throw new Error(`${profile.full_name} needs a manager or acting reviewer before enrollment.`);
+    }
+
+    if (managerProfileId === profile.id) {
+      throw new Error(`${profile.full_name} cannot review their own cycle enrollment.`);
+    }
+
+    const managerResult = await client.query<{ full_name: string; email: string }>(
+      `
+        select full_name, email
+        from public.profiles
+        where id = $1
+          and is_active = true
+        limit 1
+      `,
+      [managerProfileId]
+    );
+    const manager = managerResult.rows[0];
+
+    if (!manager) {
+      throw new Error(`${profile.full_name}'s selected reviewer is inactive or missing.`);
+    }
+
+    const enrollmentResult = await client.query<{ id: string }>(
+      `
+        insert into public.cycle_enrollments (
+          cycle_id,
+          profile_id,
+          manager_profile_id,
+          review_status,
+          discussion_status
+        )
+        values ($1, $2, $3, 'not_started', 'not_scheduled')
+        on conflict (cycle_id, profile_id) do update
+        set manager_profile_id = excluded.manager_profile_id
+        returning id
+      `,
+      [cycle.id, profile.id, managerProfileId]
+    );
+    const enrollmentId = enrollmentResult.rows[0]?.id;
+
+    await insertAuditLog(client, {
+      actorProfileId: session.userId,
+      entityType: "cycle_enrollment",
+      entityId: enrollmentId,
+      action: "enroll_cycle",
+      summary: `Admin enrolled ${profile.full_name} in ${cycle.label}.`,
+      metadata: {
+        cycleId: cycle.id,
+        profileId: profile.id,
+        managerProfileId
+      }
+    });
+
+    await queueNotification(client, {
+      audienceRole: "employee",
+      title: "Review cycle enrollment",
+      body: `You have been enrolled in ${cycle.label}.`,
+      recipientEmail: profile.email
+    });
+
+    await queueNotification(client, {
+      audienceRole: "manager",
+      title: "Review enrollment assigned",
+      body: `${profile.full_name} has been assigned to you for ${cycle.label}.`,
+      recipientEmail: manager.email
+    });
+
+    enrolledNames.push(profile.full_name);
+  }
+
+  await queueNotification(client, {
+    audienceRole: "admin",
+    title: "Review enrollment completed",
+    body: `${enrolledNames.length} profile(s) were enrolled or updated for ${cycle.label}.`
+  });
+
+  return enrolledNames.length;
+}
+
+export async function manageReviewEnrollmentAdmin(
+  client: PoolClient,
+  session: AppSession,
+  input: {
+    cycleId: string;
+    profileId: string;
+    intent: "waive" | "reopen" | "finalize" | "reassign_manager";
+    rating?: RatingValue;
+    notes?: string;
+    managerProfileId?: string;
+  }
+) {
+  if (session.role !== "admin") {
+    throw new Error("Only Admin can manage review enrollments from this workflow.");
+  }
+
+  const enrollment = await getEnrollmentContext(client, input.cycleId, input.profileId);
+
+  if (!enrollment) {
+    throw new Error("Review enrollment was not found.");
+  }
+
+  const presence = await getSubmissionPresence(client, input.cycleId, input.profileId);
+
+  if (input.intent === "reassign_manager") {
+    if (!input.managerProfileId) {
+      throw new Error("Select an acting reviewer before saving the reassignment.");
+    }
+
+    const eligibleReviewer = await isEligibleReviewer(client, input.managerProfileId);
+
+    if (!eligibleReviewer) {
+      throw new Error("Selected acting reviewer is not eligible for review administration.");
+    }
+
+    await client.query(
+      `
+        update public.cycle_enrollments
+        set manager_profile_id = $3
+        where cycle_id = $1
+          and profile_id = $2
+      `,
+      [input.cycleId, input.profileId, input.managerProfileId]
+    );
+
+    const reviewerResult = await client.query<{ full_name: string; email: string }>(
+      `
+        select full_name, email
+        from public.profiles
+        where id = $1
+        limit 1
+      `,
+      [input.managerProfileId]
+    );
+
+    const reviewer = reviewerResult.rows[0];
+
+    await insertAuditLog(client, {
+      actorProfileId: session.userId,
+      entityType: "cycle_enrollment",
+      entityId: enrollment.id,
+      action: "reassign_manager",
+      summary: `Admin reassigned ${enrollment.employeeName}'s reviewer in ${enrollment.cycleLabel}.`,
+      metadata: {
+        newManagerProfileId: input.managerProfileId,
+        notes: input.notes ?? ""
+      }
+    });
+
+    await queueNotification(client, {
+      audienceRole: "employee",
+      title: "Review manager updated",
+      body: `An acting reviewer has been assigned for ${enrollment.cycleLabel}.`,
+      recipientEmail: enrollment.employeeEmail
+    });
+
+    if (reviewer?.email) {
+      await queueNotification(client, {
+        audienceRole: "manager",
+        title: "Acting reviewer assigned",
+        body: `You have been assigned as the acting reviewer for ${enrollment.employeeName} in ${enrollment.cycleLabel}.`,
+        recipientEmail: reviewer.email
+      });
+    }
+
+    return "reassigned";
+  }
+
+  if (input.intent === "waive") {
+    await client.query(
+      `
+        update public.cycle_enrollments
+        set
+          review_status = 'waived',
+          discussion_status = 'not_scheduled',
+          final_rating = $3
+        where cycle_id = $1
+          and profile_id = $2
+      `,
+      [input.cycleId, input.profileId, input.rating ?? null]
+    );
+
+    await insertAuditLog(client, {
+      actorProfileId: session.userId,
+      entityType: "cycle_enrollment",
+      entityId: enrollment.id,
+      action: "waive_review",
+      summary: `Admin waived ${enrollment.employeeName}'s review flow in ${enrollment.cycleLabel}.`,
+      metadata: {
+        rating: input.rating ?? "",
+        notes: input.notes ?? ""
+      }
+    });
+
+    await queueNotification(client, {
+      audienceRole: "employee",
+      title: "Review waived",
+      body: `Your review workflow for ${enrollment.cycleLabel} was waived by Admin.`,
+      recipientEmail: enrollment.employeeEmail
+    });
+
+    await queueNotification(client, {
+      audienceRole: "manager",
+      title: "Review waived",
+      body: `${enrollment.employeeName}'s review workflow for ${enrollment.cycleLabel} was waived by Admin.`,
+      recipientEmail: enrollment.managerEmail
+    });
+
+    return "waived";
+  }
+
+  if (input.intent === "reopen") {
+    const nextDiscussionStatus: DiscussionStatus = "not_scheduled";
+    const nextReviewStatus = deriveEnrollmentReviewStatus({
+      hasSelf: presence.hasSelf,
+      hasManager: presence.hasManager,
+      discussionStatus: nextDiscussionStatus
+    });
+
+    await client.query(
+      `
+        update public.cycle_enrollments
+        set
+          review_status = $3,
+          discussion_status = $4,
+          final_rating = $5
+        where cycle_id = $1
+          and profile_id = $2
+      `,
+      [
+        input.cycleId,
+        input.profileId,
+        nextReviewStatus,
+        nextDiscussionStatus,
+        presence.hasManager ? enrollment.finalRating ?? null : null
+      ]
+    );
+
+    await insertAuditLog(client, {
+      actorProfileId: session.userId,
+      entityType: "cycle_enrollment",
+      entityId: enrollment.id,
+      action: "reopen_review",
+      summary: `Admin reopened ${enrollment.employeeName}'s review flow in ${enrollment.cycleLabel}.`,
+      metadata: {
+        notes: input.notes ?? ""
+      }
+    });
+
+    await queueNotification(client, {
+      audienceRole: "employee",
+      title: "Review reopened",
+      body: `Your review workflow for ${enrollment.cycleLabel} has been reopened.`,
+      recipientEmail: enrollment.employeeEmail
+    });
+
+    await queueNotification(client, {
+      audienceRole: "manager",
+      title: "Review reopened",
+      body: `${enrollment.employeeName}'s review workflow for ${enrollment.cycleLabel} has been reopened.`,
+      recipientEmail: enrollment.managerEmail
+    });
+
+    return "reopened";
+  }
+
+  const finalRating = input.rating ?? enrollment.finalRating;
+
+  if (!finalRating) {
+    throw new Error("Provide a final rating before finalizing this review.");
+  }
+
+  await client.query(
+    `
+      update public.cycle_enrollments
+      set
+        review_status = 'finalized',
+        discussion_status = 'completed',
+        final_rating = $3
+      where cycle_id = $1
+        and profile_id = $2
+    `,
+    [input.cycleId, input.profileId, finalRating]
+  );
+
+  await insertAuditLog(client, {
+    actorProfileId: session.userId,
+    entityType: "cycle_enrollment",
+    entityId: enrollment.id,
+    action: "finalize_review",
+    summary: `Admin finalized ${enrollment.employeeName}'s review in ${enrollment.cycleLabel}.`,
+    metadata: {
+      rating: finalRating,
+      notes: input.notes ?? "",
+      adminOverride: !presence.hasManager
+    }
+  });
+
+  await queueNotification(client, {
+    audienceRole: "employee",
+    title: "Review finalized",
+    body: `Your review for ${enrollment.cycleLabel} has been finalized.`,
+    recipientEmail: enrollment.employeeEmail
+  });
+
+  await queueNotification(client, {
+    audienceRole: "manager",
+    title: "Review finalized",
+    body: `${enrollment.employeeName}'s review for ${enrollment.cycleLabel} has been finalized.`,
+    recipientEmail: enrollment.managerEmail
+  });
+
+  return "finalized";
 }

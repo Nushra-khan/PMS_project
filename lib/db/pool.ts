@@ -3,6 +3,7 @@ import { Pool, PoolClient } from "pg";
 import { env } from "@/lib/env";
 
 let pool: Pool | null = null;
+let lastConnectionErrorAt = 0;
 
 export function getDbPool() {
   if (!env.databaseUrl) {
@@ -30,7 +31,15 @@ export async function getDbClient() {
 
   try {
     return (await db.connect()) satisfies PoolClient;
-  } catch {
+  } catch (error) {
+    const now = Date.now();
+
+    if (now - lastConnectionErrorAt > 10_000) {
+      const message = error instanceof Error ? error.message : "Unknown database error";
+      console.error(`[database] connection failed: ${message}`);
+      lastConnectionErrorAt = now;
+    }
+
     return null;
   }
 }

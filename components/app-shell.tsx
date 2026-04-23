@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ReactNode } from "react";
 import {
   BellDot,
+  BarChart3,
   ClipboardList,
   Flag,
   Gauge,
@@ -62,6 +63,12 @@ const navigation: Array<{
     label: "Flags",
     icon: <Flag className="h-4 w-4" />,
     roles: ["manager", "admin"]
+  },
+  {
+    href: "/reports",
+    label: "Reports",
+    icon: <BarChart3 className="h-4 w-4" />,
+    roles: ["employee", "manager", "admin"]
   },
   {
     href: "/admin/settings",

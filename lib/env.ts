@@ -5,7 +5,21 @@ export const env = {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     "",
   databaseUrl: process.env.DATABASE_URL ?? "",
-  appUrl: process.env.APP_URL ?? "http://localhost:3000"
+  appUrl: process.env.APP_URL ?? "http://localhost:3000",
+  cronSecret: process.env.CRON_SECRET ?? "",
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  emailFrom:
+    process.env.EMAIL_FROM ??
+    process.env.SMTP_FROM_EMAIL ??
+    "no-reply@pms.local",
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: Number(process.env.SMTP_PORT ?? 0),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPass: process.env.SMTP_PASS ?? "",
+  smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? "",
+  smtpFromName: process.env.SMTP_FROM_NAME ?? "PMS",
+  smtpSecure: process.env.SMTP_SECURE === "true",
+  emailBatchSize: Number(process.env.EMAIL_BATCH_SIZE ?? 25)
 };
 
 export function hasSupabaseEnv() {

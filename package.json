@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:push-seed": "node scripts/apply-sql.mjs"
+    "db:push-seed": "node scripts/apply-sql.mjs",
+    "db:seed-only": "node scripts/load-seed.mjs",
+    "db:verify-data": "node scripts/verify-production-data.mjs",
+    "e2e:smoke": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

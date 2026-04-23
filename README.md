@@ -41,9 +41,26 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000) and sign in or create an account on the authentication screen.
 
+## Background automation
+
+The app includes a protected cron endpoint for workflow automation:
+
+```bash
+GET /api/cron/automation
+Authorization: Bearer $CRON_SECRET
+```
+
+This worker runs probation checkpoint/reminder/escalation automation, goal approval escalations, in-app notification delivery, and queued email delivery. Set `CRON_SECRET` in `.env`, then call the endpoint from your scheduler, such as Vercel Cron, GitHub Actions, Windows Task Scheduler, or any uptime/cron service.
+
+Email delivery uses `RESEND_API_KEY` + `EMAIL_FROM` when configured, otherwise it falls back to the SMTP settings in `.env.example`. If no email provider is configured, email deliveries stay queued instead of failing silently.
+
+For Vercel deployments, `vercel.json` schedules `/api/cron/automation` hourly. Add the same `CRON_SECRET` value to the Vercel project environment variables so Vercel sends `Authorization: Bearer $CRON_SECRET` when it runs the job.
+
 ## Database setup
 
 If you want to load the schema and pseudo data into Supabase now, you can use either the Supabase CLI or `psql` against your `DATABASE_URL`.
+
+Use the Supabase **Session pooler** connection string for `DATABASE_URL` when your machine or deployment provider does not support IPv6. Supabase direct database URLs use IPv6 by default, while the pooler supports IPv4-compatible environments.
 
 ### Option 1: `psql`
 
@@ -55,6 +72,22 @@ psql "$DATABASE_URL" -f supabase/seed.sql
 ### Option 2: Supabase CLI
 
 Use the migration file under `supabase/migrations/` and then apply `supabase/seed.sql` as your local or hosted seed.
+
+### Safe data-only load and verification
+
+If the schema already exists, load pseudo-production data without re-running the migration:
+
+```bash
+npm run db:seed-only
+```
+
+Verify the required PMS production data shape:
+
+```bash
+npm run db:verify-data
+```
+
+The verifier checks teams, active profiles, role coverage, manager assignments, app settings, review cycles, cycle enrollments, probation cases, and probation checkpoints.
 
 ## Structure
 
