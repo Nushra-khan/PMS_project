@@ -1,7 +1,7 @@
 # PMS Pro
 
 PMS Pro is a unified performance and goal management platform built around three roles: `employee`, `manager`, and `admin`. The current implementation pass establishes the P0 foundation from the project goal and implementation plan:
-
+------------------------------------------------------------
 - role-aware dashboards
 - seeded goal management flows
 - probation monitoring
