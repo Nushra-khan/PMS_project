@@ -10,7 +10,7 @@ PMS Pro is a unified performance and goal management platform built around three
 - Admin settings and operational controls
 - Supabase schema and seed data for the core PMS model
 
-## Current state
+## Current state,...
 
 The UI currently reads from seeded in-app demo data so the routes and workflow surfaces are usable immediately.
 
