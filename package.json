@@ -14,7 +14,7 @@
     "db:verify-data": "node scripts/verify-production-data.mjs",
     "e2e:smoke": "node scripts/e2e-smoke.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "test:db": "node --import tsx --test tests/db/*.test.ts"
+    "test:db": "node --import tsx --test --test-concurrency=1 tests/db/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

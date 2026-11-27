@@ -84,6 +84,14 @@ describe("page reads return the same data with RLS enforced", { skip: !databaseU
 
   before(async () => {
     readers = await loadReaders();
+
+    // Some reads run workflow automation first (probation sync, goal
+    // escalations). Run everything once so both compared runs see the same data.
+    for (const person of people) {
+      for (const reader of Object.values(readers)) {
+        await readWithRls(false, reader, sessionFor(person.profileId, person.role));
+      }
+    }
   });
 
   after(async () => {
