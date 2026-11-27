@@ -1326,9 +1326,9 @@ export async function reassignGoalOwner(
       update public.goals
       set
         owner_profile_id = $2,
-        status = $3,
-        approved_by = case when $3 = 'pending_approval' then null else approved_by end,
-        approved_at = case when $3 = 'pending_approval' then null else approved_at end
+        status = $3::public.goal_status,
+        approved_by = case when $3::public.goal_status = 'pending_approval' then null else approved_by end,
+        approved_at = case when $3::public.goal_status = 'pending_approval' then null else approved_at end
       where id = $1
     `,
     [goal.id, nextOwner.id, nextStatus]
