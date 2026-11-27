@@ -6,6 +6,10 @@ const DB_RETRY_BACKOFF_MS = 15_000;
 
 let dbUnavailableUntil = 0;
 
+function describeError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function isProductionBuildPhase() {
   return process.env.NEXT_PHASE === "phase-production-build";
 }
@@ -33,14 +37,16 @@ export async function runWithClient<T>(
   try {
     client = await pool.connect();
     dbUnavailableUntil = 0;
-  } catch {
+  } catch (error) {
     dbUnavailableUntil = Date.now() + DB_RETRY_BACKOFF_MS;
+    console.error(`[database] connection failed: ${describeError(error)}`);
     return fallback;
   }
 
   try {
     return await task(client);
-  } catch {
+  } catch (error) {
+    console.error(`[database] query failed: ${describeError(error)}`);
     return fallback;
   } finally {
     client.release();
