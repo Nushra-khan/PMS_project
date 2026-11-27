@@ -6,7 +6,9 @@ import { SectionCard } from "@/components/section-card";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { requireSession } from "@/lib/auth/session";
+import { TrendChart } from "@/components/trend-chart";
 import { getDashboardPageData } from "@/lib/db/dashboard";
+import { getDashboardTrends } from "@/lib/db/trends";
 import { cn, formatDateTime } from "@/lib/utils";
 
 export default async function DashboardPage({
@@ -15,7 +17,10 @@ export default async function DashboardPage({
   searchParams?: { view?: string };
 }) {
   const session = await requireSession();
-  const dashboard = await getDashboardPageData(session, searchParams?.view);
+  const [dashboard, trends] = await Promise.all([
+    getDashboardPageData(session, searchParams?.view),
+    getDashboardTrends(session)
+  ]);
 
   return (
     <AppShell
@@ -57,6 +62,38 @@ export default async function DashboardPage({
           />
         ))}
       </section>
+
+      <SectionCard
+        eyebrow="Trends"
+        title="Last six months"
+        description={
+          session.role === "employee"
+            ? "How feedback about you has moved over time."
+            : "Feedback scores and flags for the people you can see, month by month."
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <TrendChart
+            title="Average feedback score"
+            description="Monthly average of probation and review feedback, out of 5."
+            points={trends.feedbackScore}
+            kind="line"
+            yDomain={[1, 5]}
+            formatValue={(point) =>
+              point.value === null ? "No feedback" : `${point.value} / 5 (${point.count} response${point.count === 1 ? "" : "s"})`
+            }
+          />
+          {trends.flagsRaised ? (
+            <TrendChart
+              title="Flags raised"
+              description="Low scores, blank answers and negative language, by month."
+              points={trends.flagsRaised}
+              kind="bar"
+              formatValue={(point) => `${point.count} flag${point.count === 1 ? "" : "s"}`}
+            />
+          ) : null}
+        </div>
+      </SectionCard>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
