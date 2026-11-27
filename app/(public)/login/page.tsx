@@ -1,6 +1,10 @@
 import { AuthPanel } from "@/components/auth-panel";
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams
+}: {
+  searchParams?: { error?: string };
+}) {
   return (
     <main className="min-h-screen bg-canvas bg-dashboard-radial px-4 py-8 text-ink">
       <div className="mx-auto max-w-4xl space-y-8">
@@ -17,7 +21,12 @@ export default function LoginPage() {
           </p>
         </section>
 
-        <section className="mx-auto max-w-2xl">
+        <section className="mx-auto max-w-2xl space-y-4">
+          {searchParams?.error === "link_expired" ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              That email link has expired or was already used. Request a new one below.
+            </div>
+          ) : null}
           <AuthPanel />
         </section>
       </div>

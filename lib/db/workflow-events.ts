@@ -2,6 +2,7 @@ import { PoolClient } from "pg";
 
 import { toNumber } from "@/lib/db/helpers";
 import { withSystemRole } from "@/lib/db/user-context";
+import { detectNegativeSentiment } from "@/lib/feedback/sentiment";
 import { FlagSeverity, Role } from "@/lib/types";
 
 type NotificationInput = {
@@ -168,6 +169,30 @@ async function insertFeedbackFlags(client: PoolClient, input: FeedbackFlagInput)
         input.employeeProfileId,
         lowScoreSeverity(input.score, threshold),
         `${input.requestLabel} scored ${input.score}/5, meeting the configured red-flag threshold (${threshold}/5).`
+      ]
+    );
+  }
+
+  const sentiment = detectNegativeSentiment(input.comments);
+
+  if (sentiment.negative) {
+    await client.query(
+      `
+        insert into public.flags (
+          submission_id,
+          employee_profile_id,
+          severity,
+          status,
+          reason
+        )
+        values ($1, $2, 'soft', 'open', $3)
+      `,
+      [
+        input.submissionId,
+        input.employeeProfileId,
+        `${input.requestLabel} contains language that may need attention (${sentiment.matches
+          .map((match) => `"${match}"`)
+          .join(", ")}).`
       ]
     );
   }

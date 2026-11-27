@@ -19,7 +19,17 @@ type AuditLogRecord = AuditLog & {
   actorName: string;
 };
 
+/** Managers can switch between their own goals and their team's. */
+export type DashboardView = "me" | "team" | "all";
+
+export function resolveDashboardView(role: AppSession["role"], requested?: string): DashboardView {
+  if (role === "employee") return "me";
+  if (requested === "me" || requested === "team") return requested;
+  return role === "manager" ? "team" : "all";
+}
+
 export type DashboardPageData = {
+  view: DashboardView;
   stats: DashboardStat[];
   goals: Array<GoalRecord & { daysLeft: number }>;
   notifications: NotificationRecord[];
@@ -147,7 +157,11 @@ async function getGoalApprovalEscalationBusinessDays() {
   });
 }
 
-export async function getDashboardPageData(session: AppSession): Promise<DashboardPageData> {
+export async function getDashboardPageData(
+  session: AppSession,
+  requestedView?: string
+): Promise<DashboardPageData> {
+  const view = resolveDashboardView(session.role, requestedView);
   const [{ goals }, { pendingApprovals }, notifications, auditTrail, probationCount, flagCount, cycleCount, escalationDays] =
     await Promise.all([
       getGoalPageData(session),
@@ -160,21 +174,33 @@ export async function getDashboardPageData(session: AppSession): Promise<Dashboa
       getGoalApprovalEscalationBusinessDays()
     ]);
 
-  const goalsWithHealth = goals.map((goal) => ({
+  const goalsInView = goals.filter((goal) =>
+    view === "me"
+      ? goal.ownerProfileId === session.userId
+      : view === "team"
+        ? goal.ownerProfileId !== session.userId && goal.scope !== "company"
+        : true
+  );
+  const goalsWithHealth = goalsInView.map((goal) => ({
     ...goal,
     daysLeft: differenceInCalendarDays(new Date(goal.dueDate), new Date())
   }));
   const totalGoalProgress =
-    goals.length === 0
+    goalsInView.length === 0
       ? 0
-      : Math.round(goals.reduce((total, goal) => total + goal.completionPct, 0) / goals.length);
+      : Math.round(
+          goalsInView.reduce((total, goal) => total + goal.completionPct, 0) / goalsInView.length
+        );
+  const goalLabel =
+    view === "me" ? "My active goals" : view === "team" ? "Team active goals" : "Active goals in view";
 
   return {
+    view,
     stats: [
       {
-        label: session.role === "employee" ? "My active goals" : "Active goals in view",
-        value: String(goals.filter((goal) => goal.status === "active").length),
-        description: `${totalGoalProgress}% average completion across accessible goals.`
+        label: goalLabel,
+        value: String(goalsInView.filter((goal) => goal.status === "active").length),
+        description: `${totalGoalProgress}% average completion across these goals.`
       },
       {
         label: "Pending approvals",

@@ -1,15 +1,26 @@
+import Link from "next/link";
+
 import { AppShell } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
 import { SectionCard } from "@/components/section-card";
 import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { requireSession } from "@/lib/auth/session";
+import { TrendChart } from "@/components/trend-chart";
 import { getDashboardPageData } from "@/lib/db/dashboard";
-import { formatDateTime } from "@/lib/utils";
+import { getDashboardTrends } from "@/lib/db/trends";
+import { cn, formatDateTime } from "@/lib/utils";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams
+}: {
+  searchParams?: { view?: string };
+}) {
   const session = await requireSession();
-  const dashboard = await getDashboardPageData(session);
+  const [dashboard, trends] = await Promise.all([
+    getDashboardPageData(session, searchParams?.view),
+    getDashboardTrends(session)
+  ]);
 
   return (
     <AppShell
@@ -17,6 +28,30 @@ export default async function DashboardPage() {
       title="Live performance operations"
       description="One role-aware cockpit for live goal health, probation compliance, review readiness, flagged responses, and auditable operational work."
     >
+      {session.role === "manager" ? (
+        <nav
+          aria-label="Dashboard view"
+          className="inline-flex w-fit rounded-full border border-ink/10 bg-white p-1"
+        >
+          {[
+            { view: "me", label: "My performance" },
+            { view: "team", label: "My team" }
+          ].map((option) => (
+            <Link
+              key={option.view}
+              href={`/dashboard?view=${option.view}`}
+              aria-current={dashboard.view === option.view ? "page" : undefined}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm transition",
+                dashboard.view === option.view ? "bg-ink text-white" : "text-ink/70 hover:text-ink"
+              )}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {dashboard.stats.map((stat) => (
           <StatCard
@@ -27,6 +62,38 @@ export default async function DashboardPage() {
           />
         ))}
       </section>
+
+      <SectionCard
+        eyebrow="Trends"
+        title="Last six months"
+        description={
+          session.role === "employee"
+            ? "How feedback about you has moved over time."
+            : "Feedback scores and flags for the people you can see, month by month."
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <TrendChart
+            title="Average feedback score"
+            description="Monthly average of probation and review feedback, out of 5."
+            points={trends.feedbackScore}
+            kind="line"
+            yDomain={[1, 5]}
+            formatValue={(point) =>
+              point.value === null ? "No feedback" : `${point.value} / 5 (${point.count} response${point.count === 1 ? "" : "s"})`
+            }
+          />
+          {trends.flagsRaised ? (
+            <TrendChart
+              title="Flags raised"
+              description="Low scores, blank answers and negative language, by month."
+              points={trends.flagsRaised}
+              kind="bar"
+              formatValue={(point) => `${point.count} flag${point.count === 1 ? "" : "s"}`}
+            />
+          ) : null}
+        </div>
+      </SectionCard>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
@@ -47,7 +114,7 @@ export default async function DashboardPage() {
                   <p className="font-medium text-ink">{goal.title}</p>
                   <p className="text-xs text-ink/55">{goal.summary}</p>
                 </div>,
-                session.role === "employee" ? "Me" : goal.ownerName,
+                goal.ownerProfileId === session.userId ? "Me" : goal.ownerName,
                 <StatusBadge key={`${goal.id}-status`} value={goal.status} />,
                 `${goal.completionPct}%`,
                 String(goal.daysLeft)
