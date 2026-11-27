@@ -54,6 +54,7 @@ async function loadReaders(): Promise<Record<string, Reader>> {
   const reports = await import("@/lib/db/reports");
   const reviews = await import("@/lib/db/reviews");
   const people = await import("@/lib/db/people");
+  const trends = await import("@/lib/db/trends");
 
   return {
     dashboard: dashboard.getDashboardPageData,
@@ -65,6 +66,7 @@ async function loadReaders(): Promise<Record<string, Reader>> {
     probation: probation.getProbationPageData,
     reports: reports.getReportsPageData,
     reviews: reviews.getReviewsPageData,
+    trends: trends.getDashboardTrends,
     people: (s) => (s.role === "admin" ? people.getPeoplePageData() : Promise.resolve(null)),
     exportGoals: (s) => reports.getReportExport(s, "goals"),
     exportReviews: (s) => reports.getReportExport(s, "reviews"),
