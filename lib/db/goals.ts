@@ -3,6 +3,7 @@ import { PoolClient } from "pg";
 
 import { getDirectReportIds, runAsSystem, runWithClient, toDateOnly, toDateString, toNumber } from "@/lib/db/helpers";
 import { withSystemRole } from "@/lib/db/user-context";
+import { computeGoalRollups, GoalRollup, RollupGoal } from "@/lib/goals/rollup";
 import { insertAuditLog, queueNotification } from "@/lib/db/workflow-events";
 import { AppSession, Goal, GoalApprovalEvent, GoalUpdate, Role } from "@/lib/types";
 
@@ -31,6 +32,8 @@ export type GoalApprovalEventRecord = GoalApprovalEvent & {
 export type GoalPageData = {
   goals: GoalRecord[];
   updates: GoalUpdateRecord[];
+  /** Roll-up of linked child goals, keyed by goal id, for visible goals. */
+  rollups: Record<string, GoalRollup>;
 };
 
 export type GoalComposerData = {
@@ -720,9 +723,48 @@ export async function getGoalOwnerOptions(
   });
 }
 
+/**
+ * Progress numbers for every goal, used only to compute roll-ups. Read as
+ * system so a company goal's roll-up counts goals the viewer cannot open;
+ * only percentages leave this function, never titles or owners.
+ */
+async function getGoalRollups(visibleGoalIds: string[]) {
+  const allGoals = await runAsSystem<RollupGoal[]>([], async (client) => {
+    const result = await client.query<{
+      id: string;
+      parent_goal_id: string | null;
+      status: string;
+      weightage: string | number;
+      completion_pct: string | number;
+    }>(
+      `
+        select id, parent_goal_id, status, weightage, completion_pct
+        from public.goals
+        where status not in ('archived', 'draft')
+      `
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      parentGoalId: row.parent_goal_id ?? undefined,
+      status: row.status,
+      weightage: toNumber(row.weightage),
+      completionPct: toNumber(row.completion_pct)
+    }));
+  });
+  const rollups = computeGoalRollups(allGoals);
+
+  return Object.fromEntries(
+    visibleGoalIds.flatMap((id) => {
+      const rollup = rollups.get(id);
+      return rollup ? [[id, rollup] as const] : [];
+    })
+  );
+}
+
 export async function getGoalPageData(session: AppSession): Promise<GoalPageData> {
-  return runWithClient(
-    { goals: [], updates: [] },
+  const data = await runWithClient(
+    { goals: [] as GoalRecord[], updates: [] as GoalUpdateRecord[] },
     async (client) => {
       const [goals, updates] = await Promise.all([
         getAccessibleGoalRows(client, session),
@@ -732,6 +774,8 @@ export async function getGoalPageData(session: AppSession): Promise<GoalPageData
       return { goals, updates };
     }
   );
+
+  return { ...data, rollups: await getGoalRollups(data.goals.map((goal) => goal.id)) };
 }
 
 export async function getGoalComposerData(session: AppSession): Promise<GoalComposerData> {
