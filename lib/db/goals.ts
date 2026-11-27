@@ -1,7 +1,7 @@
 import { differenceInBusinessDays } from "date-fns";
 import { PoolClient } from "pg";
 
-import { getDirectReportIds, runWithClient, toDateOnly, toDateString, toNumber } from "@/lib/db/helpers";
+import { getDirectReportIds, runAsSystem, runWithClient, toDateOnly, toDateString, toNumber } from "@/lib/db/helpers";
 import { insertAuditLog, queueNotification } from "@/lib/db/workflow-events";
 import { AppSession, Goal, GoalApprovalEvent, GoalUpdate, Role } from "@/lib/types";
 
@@ -657,7 +657,7 @@ async function syncGoalApprovalEscalations(client: PoolClient) {
 }
 
 export async function runGoalApprovalEscalations() {
-  return runWithClient<void>(undefined, syncGoalApprovalEscalations);
+  return runAsSystem<void>(undefined, syncGoalApprovalEscalations);
 }
 
 export async function getGoalOwnerOptions(

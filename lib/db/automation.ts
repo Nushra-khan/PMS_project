@@ -2,7 +2,7 @@ import { PoolClient } from "pg";
 
 import { env } from "@/lib/env";
 import { getEmailProvider, sendEmail } from "@/lib/email/send";
-import { runWithClient, toNumber } from "@/lib/db/helpers";
+import { runAsSystem, toNumber } from "@/lib/db/helpers";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
 import { runGoalApprovalEscalations } from "@/lib/db/goals";
 import { syncProbationAutomation } from "@/lib/db/probation";
@@ -202,7 +202,7 @@ async function refreshNotificationStatuses(client: PoolClient) {
 }
 
 async function processNotificationDeliveries() {
-  return runWithClient<NotificationDeliveryResult>(
+  return runAsSystem<NotificationDeliveryResult>(
     {
       provider: "not_configured",
       inAppMarkedSent: 0,

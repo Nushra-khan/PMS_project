@@ -2,7 +2,7 @@ import { differenceInCalendarDays } from "date-fns";
 import { PoolClient } from "pg";
 
 import { addWorkingDays, WorkingDayLeavePeriod } from "@/lib/dates/working-days";
-import { runWithClient, toDateOnly, toDateString } from "@/lib/db/helpers";
+import { runAsSystem, runWithClient, toDateOnly, toDateString } from "@/lib/db/helpers";
 import {
   insertAuditLog,
   maybeCreateFeedbackFlags,
@@ -892,7 +892,7 @@ async function getAutomationAuditLookup(
 }
 
 export async function syncProbationAutomation() {
-  return runWithClient<void>(undefined, async (client) => {
+  return runAsSystem<void>(undefined, async (client) => {
     const probationCases = await getProbationAutomationCases(client);
 
     if (probationCases.length === 0) {
