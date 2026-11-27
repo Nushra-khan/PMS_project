@@ -6,6 +6,13 @@ const DB_RETRY_BACKOFF_MS = 15_000;
 
 let dbUnavailableUntil = 0;
 
+export class DatabaseUnavailableError extends Error {
+  constructor(message = "The database is unavailable right now.") {
+    super(message);
+    this.name = "DatabaseUnavailableError";
+  }
+}
+
 function describeError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -14,6 +21,12 @@ function isProductionBuildPhase() {
   return process.env.NEXT_PHASE === "phase-production-build";
 }
 
+/**
+ * Runs a database task. `fallback` is only returned when no database is
+ * configured (local preview) or during `next build`. When a database is
+ * configured but unreachable or a query fails, the error is thrown so the
+ * page shows an error state instead of silently rendering empty data.
+ */
 export async function runWithClient<T>(
   fallback: T,
   task: (client: PoolClient) => Promise<T>
@@ -29,7 +42,7 @@ export async function runWithClient<T>(
   }
 
   if (Date.now() < dbUnavailableUntil) {
-    return fallback;
+    throw new DatabaseUnavailableError();
   }
 
   let client: PoolClient;
@@ -40,14 +53,14 @@ export async function runWithClient<T>(
   } catch (error) {
     dbUnavailableUntil = Date.now() + DB_RETRY_BACKOFF_MS;
     console.error(`[database] connection failed: ${describeError(error)}`);
-    return fallback;
+    throw new DatabaseUnavailableError();
   }
 
   try {
     return await task(client);
   } catch (error) {
     console.error(`[database] query failed: ${describeError(error)}`);
-    return fallback;
+    throw error;
   } finally {
     client.release();
   }
