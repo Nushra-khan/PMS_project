@@ -140,17 +140,22 @@ async function getLiveSessionFromSupabase(): Promise<AppSession | null> {
         };
       }
     }
-  } catch {
-    // If live profile provisioning is not reachable yet, fall back to auth metadata.
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[session] failed to load profile for ${user.id}: ${message}`);
   }
 
+  // The database could not confirm this user's roles. Grant the least-privileged
+  // role rather than trusting metadata, so an outage never widens access.
+  const fallbackRole: Role = "employee";
+
   return {
-    role: metadataRole,
+    role: fallbackRole,
     userId: user.id,
     workspaceProfileId: user.id,
     sessionMode: "authenticated",
     authUserId: user.id,
-    profile: buildAuthenticatedProfile(user, metadataRole)
+    profile: buildAuthenticatedProfile(user, fallbackRole)
   };
 }
 
