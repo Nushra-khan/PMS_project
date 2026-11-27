@@ -2,6 +2,7 @@ import { differenceInBusinessDays } from "date-fns";
 import { PoolClient } from "pg";
 
 import { getDirectReportIds, runAsSystem, runWithClient, toDateOnly, toDateString, toNumber } from "@/lib/db/helpers";
+import { withSystemRole } from "@/lib/db/user-context";
 import { insertAuditLog, queueNotification } from "@/lib/db/workflow-events";
 import { AppSession, Goal, GoalApprovalEvent, GoalUpdate, Role } from "@/lib/types";
 
@@ -757,7 +758,8 @@ export async function getGoalApprovalPageData(
     { pendingApprovals: [], events: [] },
     async (client) => {
       if (session.role !== "employee") {
-        await syncGoalApprovalEscalations(client);
+        // Escalations are workflow automation, not the viewer's own writes.
+        await withSystemRole(client, () => syncGoalApprovalEscalations(client));
       }
 
       const [pendingApprovals, events] = await Promise.all([
