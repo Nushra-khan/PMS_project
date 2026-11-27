@@ -27,7 +27,11 @@ const createGoalSchema = z.object({
     .min(0, "Weightage cannot be negative.")
     .max(100, "Weightage cannot exceed 100."),
   dueDate: z.string().min(1, "Due date is required."),
-  intent: z.enum(["draft", "submit", "activate"])
+  intent: z.enum(["draft", "submit", "activate"]),
+  parentGoalId: z
+    .union([z.literal(""), z.string().uuid("Parent goal is invalid.")])
+    .optional()
+    .transform((value) => value || undefined)
 });
 
 const resolveGoalSchema = z.object({
@@ -105,7 +109,8 @@ export async function createGoalAction(formData: FormData) {
     scope: formData.get("scope"),
     weightage: formData.get("weightage"),
     dueDate: formData.get("dueDate"),
-    intent: formData.get("intent")
+    intent: formData.get("intent"),
+    parentGoalId: formData.get("parentGoalId") ?? undefined
   });
 
   if (!parsed.success) {
