@@ -9,7 +9,8 @@ import {
   Goal,
   LogOut,
   ShieldCheck,
-  TimerReset
+  TimerReset,
+  Users
 } from "lucide-react";
 
 import { AppSession, Role } from "@/lib/types";
@@ -69,6 +70,12 @@ const navigation: Array<{
     label: "Reports",
     icon: <BarChart3 className="h-4 w-4" />,
     roles: ["employee", "manager", "admin"]
+  },
+  {
+    href: "/admin/people",
+    label: "People",
+    icon: <Users className="h-4 w-4" />,
+    roles: ["admin"]
   },
   {
     href: "/admin/settings",
