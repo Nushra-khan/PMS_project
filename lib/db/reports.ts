@@ -179,12 +179,12 @@ export async function getReportsPageData(session: AppSession): Promise<ReportsPa
             where (
               $1::uuid[] is null
               or cases.profile_id = any($1::uuid[])
-              or cases.manager_profile_id = any($1::uuid[])
+              or cases.manager_profile_id = $2
             )
             group by employee.full_name, manager.full_name, cases.status, cases.confirmation_call_date
             order by cases.confirmation_call_date asc nulls last, employee.full_name asc
           `,
-          [accessibleProfileIds]
+          [accessibleProfileIds, session.userId]
         ),
         client.query<{
           employee_name: string;
