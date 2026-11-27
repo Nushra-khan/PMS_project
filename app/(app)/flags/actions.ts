@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireSession } from "@/lib/auth/session";
 import { updateFlagStatus } from "@/lib/db/flags";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { beginUserTransaction } from "@/lib/db/user-context";
 
 function redirectWithMessage(
   path: string,
@@ -55,7 +56,7 @@ export async function updateFlagStatusAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await updateFlagStatus(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {

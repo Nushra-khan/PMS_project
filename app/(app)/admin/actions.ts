@@ -13,6 +13,7 @@ import {
   updateReviewCycleSchedule
 } from "@/lib/db/reviews";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { beginUserTransaction } from "@/lib/db/user-context";
 import { CycleType, RatingValue } from "@/lib/types";
 
 function redirectWithMessage(
@@ -118,7 +119,7 @@ export async function updateAdminSettingsAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await updateAdminSettings(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {
@@ -174,7 +175,7 @@ export async function createReviewCycleAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await createReviewCycle(client, session, {
       ...parsed.data,
       finalizeFrom: parsed.data.finalizeFrom || undefined
@@ -229,7 +230,7 @@ export async function updateReviewCycleScheduleAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await updateReviewCycleSchedule(client, session, {
       ...parsed.data,
       finalizeFrom: parsed.data.finalizeFrom || undefined
@@ -289,7 +290,7 @@ export async function enrollReviewCycleParticipantsAction(formData: FormData) {
   let enrolledCount = 0;
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     enrolledCount = await enrollReviewCycleParticipants(client, session, {
       ...parsed.data,
       managerProfileId: parsed.data.managerProfileId || undefined
@@ -351,7 +352,7 @@ export async function manageReviewEnrollmentAdminAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await manageReviewEnrollmentAdmin(client, session, {
       ...parsed.data,
       notes: parsed.data.notes || undefined,

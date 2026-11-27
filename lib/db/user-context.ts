@@ -1,5 +1,7 @@
 import { PoolClient } from "pg";
 
+import { getCurrentAuthUserId } from "@/lib/auth/current-user";
+
 /**
  * Row-level security support for the direct Postgres connection.
  *
@@ -20,6 +22,18 @@ export async function applyUserContext(client: PoolClient, authUserId: string | 
     )
   ]);
   await client.query(authUserId ? "set local role authenticated" : "set local role anon");
+}
+
+/**
+ * Starts a transaction for a user action. With DB_ENFORCE_RLS=true the rest of
+ * the transaction runs as the signed-in user, so policies limit the writes.
+ */
+export async function beginUserTransaction(client: PoolClient) {
+  await client.query("begin");
+
+  if (isRlsEnforced()) {
+    await applyUserContext(client, await getCurrentAuthUserId());
+  }
 }
 
 /**
