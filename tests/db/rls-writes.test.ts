@@ -74,6 +74,35 @@ async function loadScenarios(): Promise<Scenario[]> {
         })
     },
     {
+      name: "employee links a goal under their manager's team goal",
+      actor: [AANYA, "employee"],
+      run: (c, s) =>
+        goals.createGoalRecord(c, s, {
+          title: "Cut dashboard load time",
+          summary: "Bring the manager dashboard under one second.",
+          scope: "individual",
+          weightage: 0,
+          dueDate: "2026-12-31",
+          intent: "draft",
+          parentGoalId: "92929292-9292-4929-8929-929292929292"
+        })
+    },
+    {
+      name: "employee cannot link a goal under an individual goal",
+      actor: [AANYA, "employee"],
+      forbidden: true,
+      run: (c, s) =>
+        goals.createGoalRecord(c, s, {
+          title: "Nested individual goal",
+          summary: "Should be refused by the scope check.",
+          scope: "individual",
+          weightage: 0,
+          dueDate: "2026-12-31",
+          intent: "draft",
+          parentGoalId: "95959595-9595-4959-8959-959595959595"
+        })
+    },
+    {
       name: "employee submits a goal for approval",
       actor: [NEHA, "employee"],
       run: (c, s) =>
