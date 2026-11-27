@@ -1,6 +1,7 @@
 import { PoolClient } from "pg";
 
 import { toNumber } from "@/lib/db/helpers";
+import { withSystemRole } from "@/lib/db/user-context";
 import { FlagSeverity, Role } from "@/lib/types";
 
 type NotificationInput = {
@@ -40,7 +41,15 @@ function lowScoreSeverity(score: number, threshold: number): FlagSeverity {
   return "medium";
 }
 
-export async function queueNotification(
+/**
+ * Notifications are system records: users never write them directly, so this
+ * runs with the connection's own privileges even inside a user transaction.
+ */
+export async function queueNotification(client: PoolClient, input: NotificationInput) {
+  return withSystemRole(client, () => insertNotification(client, input));
+}
+
+async function insertNotification(
   client: PoolClient,
   input: NotificationInput
 ) {
@@ -109,16 +118,23 @@ export async function insertAuditLog(client: PoolClient, input: AuditLogInput) {
   );
 }
 
-export async function maybeCreateFeedbackFlags(
-  client: PoolClient,
-  input: {
-    submissionId: string;
-    employeeProfileId: string;
-    score: number;
-    comments: string;
-    requestLabel: string;
-  }
-) {
+type FeedbackFlagInput = {
+  submissionId: string;
+  employeeProfileId: string;
+  score: number;
+  comments: string;
+  requestLabel: string;
+};
+
+/**
+ * Flags are raised automatically about the employee being reviewed, so they
+ * are written as system records rather than as the reviewer.
+ */
+export async function maybeCreateFeedbackFlags(client: PoolClient, input: FeedbackFlagInput) {
+  return withSystemRole(client, () => insertFeedbackFlags(client, input));
+}
+
+async function insertFeedbackFlags(client: PoolClient, input: FeedbackFlagInput) {
   const existingResult = await client.query<{ id: string }>(
     `
       select id
