@@ -23,5 +23,6 @@ declare module "pg" {
   export class Pool {
     constructor(config?: PoolConfig);
     connect(): Promise<PoolClient>;
+    end(): Promise<void>;
   }
 }

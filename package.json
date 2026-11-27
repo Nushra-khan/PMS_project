@@ -13,7 +13,8 @@
     "db:seed-only": "node scripts/load-seed.mjs",
     "db:verify-data": "node scripts/verify-production-data.mjs",
     "e2e:smoke": "node scripts/e2e-smoke.mjs",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:db": "node --import tsx --test tests/db/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -36,6 +37,7 @@
     "eslint-config-next": "14.2.25",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
     "typescript": "^5.8.2"
   }
 }
