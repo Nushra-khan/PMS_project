@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-type AuthMode = "sign_in" | "sign_up";
+type AuthMode = "sign_in" | "sign_up" | "forgot_password";
 
 export function AuthPanel() {
   const router = useRouter();
@@ -30,6 +30,20 @@ export function AuthPanel() {
 
     setErrorMessage(null);
     setFeedback(null);
+
+    if (mode === "forgot_password") {
+      const redirectTo = `${window.location.origin}/auth/callback?next=/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+      if (error) {
+        setErrorMessage(error.message);
+        return;
+      }
+
+      // Same message whether or not the account exists, so emails can't be probed.
+      setFeedback("If an account exists for that email, a password reset link is on its way.");
+      return;
+    }
 
     if (mode === "sign_in") {
       const { error } = await supabase.auth.signInWithPassword({
@@ -146,18 +160,44 @@ export function AuthPanel() {
           />
         </label>
 
-        <label className="grid gap-2 text-sm font-medium text-ink">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
-            placeholder="Minimum 6 characters"
-            required
-            minLength={6}
-          />
-        </label>
+        {mode !== "forgot_password" ? (
+          <label className="grid gap-2 text-sm font-medium text-ink">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
+              placeholder="Minimum 6 characters"
+              required
+              minLength={6}
+            />
+          </label>
+        ) : null}
+
+        {mode === "sign_in" ? (
+          <button
+            type="button"
+            onClick={() => {
+              setMode("forgot_password");
+              setErrorMessage(null);
+              setFeedback(null);
+            }}
+            className="justify-self-start text-sm text-tide underline-offset-4 hover:underline"
+          >
+            Forgot password?
+          </button>
+        ) : null}
+
+        {mode === "forgot_password" ? (
+          <button
+            type="button"
+            onClick={() => setMode("sign_in")}
+            className="justify-self-start text-sm text-tide underline-offset-4 hover:underline"
+          >
+            Back to sign in
+          </button>
+        ) : null}
 
         {feedback ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -180,7 +220,9 @@ export function AuthPanel() {
             ? "Working..."
             : mode === "sign_in"
               ? "Sign in to PMS"
-              : "Create account"}
+              : mode === "forgot_password"
+                ? "Email me a reset link"
+                : "Create account"}
         </button>
       </form>
     </section>
