@@ -1,7 +1,5 @@
 import { addDays, isWeekend } from "date-fns";
 
-import { leavePeriods } from "@/lib/demo-data";
-
 export type WorkingDayLeavePeriod = {
   startDate: string;
   endDate: string;
@@ -13,15 +11,6 @@ function isWithinLeave(date: Date, periods: WorkingDayLeavePeriod[]) {
     const end = new Date(period.endDate);
     return date >= start && date <= end;
   });
-}
-
-function getDemoLeavePeriods(profileId: string) {
-  return leavePeriods
-    .filter((period) => period.profileId === profileId)
-    .map((period) => ({
-      startDate: period.startDate,
-      endDate: period.endDate
-    }));
 }
 
 export function isWorkingDay(date: Date, periods: WorkingDayLeavePeriod[] = []) {
@@ -45,16 +34,4 @@ export function addWorkingDays(
   }
 
   return cursor;
-}
-
-export function isWorkingDayForProfile(profileId: string, date: Date) {
-  return isWorkingDay(date, getDemoLeavePeriods(profileId));
-}
-
-export function addWorkingDaysForProfile(
-  profileId: string,
-  startDate: string,
-  daysToAdd: number
-) {
-  return addWorkingDays(startDate, daysToAdd, getDemoLeavePeriods(profileId));
 }
