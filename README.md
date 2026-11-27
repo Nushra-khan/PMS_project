@@ -88,6 +88,23 @@ npm run db:verify-data
 
 The verifier checks teams, active profiles, role coverage, manager assignments, app settings, review cycles, cycle enrollments, probation cases, and probation checkpoints.
 
+## Row-level security
+
+`DATABASE_URL` connects as the database owner, which skips Postgres row-level security. Set `DB_ENFORCE_RLS=true` to run every page read and user action as Supabase's `authenticated` role with the signed-in user's id, so the policies in `supabase/migrations/` are enforced by the database as well as by the app. Cron automation, notifications and auto-raised flags still run with the owner connection on purpose.
+
+To turn it on:
+
+1. Apply all migrations, including `202611270001_profiles_directory_read.sql` and `202611270002_user_write_policies.sql`, to a staging project first.
+2. Set `DB_ENFORCE_RLS=true` there and click through each screen as an employee, a manager and an admin.
+3. Then do the same in production. Setting it back to `false` restores the old behaviour without a deploy.
+
+The RLS tests check this against a plain Postgres:
+
+```bash
+scripts/sql/setup-test-db.sh "postgres://postgres@localhost:5432/pms_test"
+TEST_DATABASE_URL="postgres://postgres@localhost:5432/pms_test" npm run test:db
+```
+
 ## Checks
 
 ```bash
