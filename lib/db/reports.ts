@@ -202,10 +202,12 @@ export async function getReportsPageData(session: AppSession): Promise<ReportsPa
               flags.aged_at
             from public.flags flags
             join public.profiles employee on employee.id = flags.employee_profile_id
-            where ($1::uuid[] is null or flags.employee_profile_id = any($1::uuid[]))
+            where $2::boolean
+              and ($1::uuid[] is null or flags.employee_profile_id = any($1::uuid[]))
             order by flags.aged_at desc
           `,
-          [accessibleProfileIds]
+          // Flags are for managers and HR only, matching the flags page.
+          [accessibleProfileIds, session.role !== "employee"]
         ),
         session.role === "admin"
           ? client.query<{
