@@ -242,6 +242,16 @@ async function loadScenarios(): Promise<Scenario[]> {
         })
     },
     {
+      name: "manager submits feedback with negative language (raises a sentiment flag)",
+      actor: [ARJUN, "manager"],
+      run: (c, s) =>
+        probation.submitProbationFeedback(c, s, {
+          checkpointId: "d1d1d1d1-d1d1-41d1-81d1-d1d1d1d1d1d1",
+          score: 4,
+          comments: "Good output, but Neha seems overwhelmed and frustrated with handovers."
+        })
+    },
+    {
       name: "admin records a probation decision",
       actor: [ADMIN, "admin"],
       run: (c, s) =>
