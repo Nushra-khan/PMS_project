@@ -16,7 +16,7 @@ export default async function NewGoalPage({
   searchParams?: { status?: string; message?: string };
 }) {
   const session = await requireSession();
-  const { myGoals, committedWeightage } = await getGoalComposerData(session);
+  const { myGoals, committedWeightage, parentOptions } = await getGoalComposerData(session);
   const status = searchParams?.status;
   const message = searchParams?.message;
   const isEmployee = session.role === "employee";
@@ -58,6 +58,25 @@ export default async function NewGoalPage({
                 placeholder="Describe the business outcome, dependencies, and review-cycle relevance."
                 required
               />
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-ink">
+              Contributes to
+              <select
+                name="parentGoalId"
+                className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
+                defaultValue=""
+              >
+                <option value="">Not linked to a broader goal</option>
+                {parentOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.scope === "company" ? "Company" : "Team"}: {option.title} ({option.ownerName})
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs font-normal text-ink/55">
+                Progress on linked goals rolls up into the broader goal.
+              </span>
             </label>
 
             <div className="grid gap-4 md:grid-cols-2">

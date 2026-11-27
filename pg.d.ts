@@ -3,6 +3,7 @@ declare module "pg" {
 
   export interface QueryResult<R extends QueryResultRow = QueryResultRow> {
     rows: R[];
+    rowCount: number | null;
   }
 
   export interface PoolConfig {
@@ -23,5 +24,6 @@ declare module "pg" {
   export class Pool {
     constructor(config?: PoolConfig);
     connect(): Promise<PoolClient>;
+    end(): Promise<void>;
   }
 }

@@ -15,6 +15,7 @@ import {
   resubmitGoal
 } from "@/lib/db/goals";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { beginUserTransaction } from "@/lib/db/user-context";
 import { GoalScope } from "@/lib/types";
 
 const createGoalSchema = z.object({
@@ -26,7 +27,11 @@ const createGoalSchema = z.object({
     .min(0, "Weightage cannot be negative.")
     .max(100, "Weightage cannot exceed 100."),
   dueDate: z.string().min(1, "Due date is required."),
-  intent: z.enum(["draft", "submit", "activate"])
+  intent: z.enum(["draft", "submit", "activate"]),
+  parentGoalId: z
+    .union([z.literal(""), z.string().uuid("Parent goal is invalid.")])
+    .optional()
+    .transform((value) => value || undefined)
 });
 
 const resolveGoalSchema = z.object({
@@ -104,7 +109,8 @@ export async function createGoalAction(formData: FormData) {
     scope: formData.get("scope"),
     weightage: formData.get("weightage"),
     dueDate: formData.get("dueDate"),
-    intent: formData.get("intent")
+    intent: formData.get("intent"),
+    parentGoalId: formData.get("parentGoalId") ?? undefined
   });
 
   if (!parsed.success) {
@@ -132,7 +138,7 @@ export async function createGoalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await createGoalRecord(client, session, input);
     await client.query("commit");
   } catch (error) {
@@ -197,7 +203,7 @@ export async function resolveGoalApprovalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     const outcome = await resolveGoalApproval(client, session, input);
     await client.query("commit");
 
@@ -262,7 +268,7 @@ export async function postGoalUpdateAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await postGoalUpdate(client, session, input);
     await client.query("commit");
   } catch (error) {
@@ -315,7 +321,7 @@ export async function editGoalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await editGoal(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {
@@ -366,7 +372,7 @@ export async function reassignGoalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await reassignGoalOwner(client, session, {
       ...parsed.data,
       notes: parsed.data.notes || undefined
@@ -419,7 +425,7 @@ export async function resubmitGoalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await resubmitGoal(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {
@@ -469,7 +475,7 @@ export async function archiveGoalAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await archiveGoal(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireSession } from "@/lib/auth/session";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { beginUserTransaction } from "@/lib/db/user-context";
 import {
   recordProbationDecision,
   submitProbationFeedback
@@ -64,7 +65,7 @@ export async function submitProbationFeedbackAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await submitProbationFeedback(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {
@@ -119,7 +120,7 @@ export async function recordProbationDecisionAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await recordProbationDecision(client, session, parsed.data);
     await client.query("commit");
   } catch (error) {

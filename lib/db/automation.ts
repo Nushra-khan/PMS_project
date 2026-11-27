@@ -2,8 +2,9 @@ import { PoolClient } from "pg";
 
 import { env } from "@/lib/env";
 import { getEmailProvider, sendEmail } from "@/lib/email/send";
-import { runWithClient, toNumber } from "@/lib/db/helpers";
+import { runAsSystem, toNumber } from "@/lib/db/helpers";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { runFlagEscalations } from "@/lib/db/flag-escalations";
 import { runGoalApprovalEscalations } from "@/lib/db/goals";
 import { syncProbationAutomation } from "@/lib/db/probation";
 
@@ -32,6 +33,7 @@ export type AutomationRunResult = {
   finishedAt: string;
   probationAutomation: "completed" | "skipped";
   goalEscalations: "completed" | "skipped";
+  flagsEscalated: number;
   deliveries: NotificationDeliveryResult;
 };
 
@@ -202,7 +204,7 @@ async function refreshNotificationStatuses(client: PoolClient) {
 }
 
 async function processNotificationDeliveries() {
-  return runWithClient<NotificationDeliveryResult>(
+  return runAsSystem<NotificationDeliveryResult>(
     {
       provider: "not_configured",
       inAppMarkedSent: 0,
@@ -273,6 +275,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
       finishedAt: new Date().toISOString(),
       probationAutomation: "skipped",
       goalEscalations: "skipped",
+      flagsEscalated: 0,
       deliveries: {
         provider: "not_configured",
         inAppMarkedSent: 0,
@@ -292,6 +295,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
       finishedAt: new Date().toISOString(),
       probationAutomation: "skipped",
       goalEscalations: "skipped",
+      flagsEscalated: 0,
       deliveries: {
         provider: "not_configured",
         inAppMarkedSent: 0,
@@ -306,6 +310,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
 
   await syncProbationAutomation();
   await runGoalApprovalEscalations();
+  const flagsEscalated = await runFlagEscalations();
   const deliveries = await processNotificationDeliveries();
 
   return {
@@ -314,6 +319,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
     finishedAt: new Date().toISOString(),
     probationAutomation: "completed",
     goalEscalations: "completed",
+    flagsEscalated,
     deliveries
   };
 }

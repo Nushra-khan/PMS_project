@@ -1,3 +1,8 @@
+function parsePort(value: string | undefined) {
+  const port = Number(value);
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : 0;
+}
+
 export const env = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   supabasePublishableKey:
@@ -13,7 +18,7 @@ export const env = {
     process.env.SMTP_FROM_EMAIL ??
     "no-reply@pms.local",
   smtpHost: process.env.SMTP_HOST ?? "",
-  smtpPort: Number(process.env.SMTP_PORT ?? 0),
+  smtpPort: parsePort(process.env.SMTP_PORT),
   smtpUser: process.env.SMTP_USER ?? "",
   smtpPass: process.env.SMTP_PASS ?? "",
   smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? "",

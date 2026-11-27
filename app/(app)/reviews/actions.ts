@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireSession } from "@/lib/auth/session";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
+import { beginUserTransaction } from "@/lib/db/user-context";
 import {
   submitReviewSubmission,
   updateDiscussionStatus
@@ -76,7 +77,7 @@ export async function submitReviewAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await submitReviewSubmission(client, session, input);
     await client.query("commit");
   } catch (error) {
@@ -128,7 +129,7 @@ export async function updateDiscussionStatusAction(formData: FormData) {
   }
 
   try {
-    await client.query("begin");
+    await beginUserTransaction(client);
     await updateDiscussionStatus(client, session, input);
     await client.query("commit");
   } catch (error) {

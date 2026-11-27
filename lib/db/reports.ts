@@ -1,5 +1,6 @@
 import { PoolClient } from "pg";
 
+import { toCsv } from "@/lib/csv";
 import { runWithClient, getDirectReportIds, toDateOnly, toDateString, toNumber } from "@/lib/db/helpers";
 import { AppSession, FlagSeverity, FlagStatus, GoalStatus, ProbationStatus, RatingValue, ReviewStatus } from "@/lib/types";
 
@@ -83,23 +84,6 @@ async function getAccessibleProfileIds(
   }
 
   return [session.userId];
-}
-
-function csvEscape(value: string | number | undefined) {
-  const normalized = value === undefined ? "" : String(value);
-
-  if (/[",\r\n]/.test(normalized)) {
-    return `"${normalized.replaceAll('"', '""')}"`;
-  }
-
-  return normalized;
-}
-
-function toCsv(headers: string[], rows: Array<Array<string | number | undefined>>) {
-  return [
-    headers.map(csvEscape).join(","),
-    ...rows.map((row) => row.map(csvEscape).join(","))
-  ].join("\n");
 }
 
 export async function getReportsPageData(session: AppSession): Promise<ReportsPageData> {
@@ -195,12 +179,12 @@ export async function getReportsPageData(session: AppSession): Promise<ReportsPa
             where (
               $1::uuid[] is null
               or cases.profile_id = any($1::uuid[])
-              or cases.manager_profile_id = any($1::uuid[])
+              or cases.manager_profile_id = $2
             )
             group by employee.full_name, manager.full_name, cases.status, cases.confirmation_call_date
             order by cases.confirmation_call_date asc nulls last, employee.full_name asc
           `,
-          [accessibleProfileIds]
+          [accessibleProfileIds, session.userId]
         ),
         client.query<{
           employee_name: string;
@@ -218,10 +202,12 @@ export async function getReportsPageData(session: AppSession): Promise<ReportsPa
               flags.aged_at
             from public.flags flags
             join public.profiles employee on employee.id = flags.employee_profile_id
-            where ($1::uuid[] is null or flags.employee_profile_id = any($1::uuid[]))
+            where $2::boolean
+              and ($1::uuid[] is null or flags.employee_profile_id = any($1::uuid[]))
             order by flags.aged_at desc
           `,
-          [accessibleProfileIds]
+          // Flags are for managers and HR only, matching the flags page.
+          [accessibleProfileIds, session.role !== "employee"]
         ),
         session.role === "admin"
           ? client.query<{

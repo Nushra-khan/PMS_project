@@ -202,13 +202,13 @@ async function getSubmissionRows(session: AppSession) {
             submissions.related_cycle_id,
             submissions.score,
             submissions.comments,
-            submissions.submitted_at,
+            submissions.created_at as submitted_at,
             submitter.full_name as submitter_name,
             target.full_name as target_name
           from public.feedback_submissions submissions
           join public.profiles submitter on submitter.id = submissions.submitted_by
           join public.profiles target on target.id = submissions.target_profile_id
-          order by submissions.submitted_at desc
+          order by submissions.created_at desc
         `
       );
 
@@ -248,14 +248,14 @@ async function getSubmissionRows(session: AppSession) {
           submissions.related_cycle_id,
           submissions.score,
           submissions.comments,
-          submissions.submitted_at,
+          submissions.created_at as submitted_at,
           submitter.full_name as submitter_name,
           target.full_name as target_name
         from public.feedback_submissions submissions
         join public.profiles submitter on submitter.id = submissions.submitted_by
         join public.profiles target on target.id = submissions.target_profile_id
         where submissions.target_profile_id = any($1::uuid[])
-        order by submissions.submitted_at desc
+        order by submissions.created_at desc
       `,
       [accessibleTargetIds]
     );
