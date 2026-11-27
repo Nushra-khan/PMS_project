@@ -58,6 +58,7 @@ async function loadScenarios(): Promise<Scenario[]> {
   const probation = await import("@/lib/db/probation");
   const reviews = await import("@/lib/db/reviews");
   const admin = await import("@/lib/db/admin");
+  const people = await import("@/lib/db/people");
 
   return [
     {
@@ -325,6 +326,47 @@ async function loadScenarios(): Promise<Scenario[]> {
           profileId: NEHA,
           intent: "waive",
           notes: "On approved leave."
+        })
+    },
+    {
+      name: "admin makes someone a manager",
+      actor: [ADMIN, "admin"],
+      run: (c, s) => people.updatePersonRoles(c, s, { profileId: ROHAN, roles: ["employee", "manager"] })
+    },
+    {
+      name: "admin cannot drop their own admin role",
+      actor: [ADMIN, "admin"],
+      forbidden: true,
+      run: (c, s) => people.updatePersonRoles(c, s, { profileId: ADMIN, roles: ["employee"] })
+    },
+    {
+      name: "manager cannot change roles",
+      actor: [MAYA, "manager"],
+      forbidden: true,
+      run: (c, s) => people.updatePersonRoles(c, s, { profileId: MAYA, roles: ["admin"] })
+    },
+    {
+      name: "admin changes a manager",
+      actor: [ADMIN, "admin"],
+      run: (c, s) => people.updatePersonManager(c, s, { profileId: NEHA, managerProfileId: MAYA })
+    },
+    {
+      name: "admin cannot create a reporting loop",
+      actor: [ADMIN, "admin"],
+      forbidden: true,
+      run: (c, s) => people.updatePersonManager(c, s, { profileId: MAYA, managerProfileId: ARJUN })
+    },
+    {
+      name: "admin updates job details",
+      actor: [ADMIN, "admin"],
+      run: (c, s) =>
+        people.updatePersonDetails(c, s, {
+          profileId: AANYA,
+          title: "Senior Frontend Engineer",
+          department: "Technology",
+          teamId: "11111111-1111-4111-8111-111111111111",
+          reviewTrack: "biannual",
+          isActive: true
         })
     },
     {
