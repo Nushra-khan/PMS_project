@@ -85,8 +85,16 @@ async function getAccessibleProfileIds(
   return [session.userId];
 }
 
+// Cells starting with these characters are treated as formulas by Excel,
+// Google Sheets and LibreOffice, which allows CSV formula injection.
+const CSV_FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 function csvEscape(value: string | number | undefined) {
-  const normalized = value === undefined ? "" : String(value);
+  let normalized = value === undefined ? "" : String(value);
+
+  if (typeof value === "string" && CSV_FORMULA_PREFIX.test(normalized)) {
+    normalized = `'${normalized}`;
+  }
 
   if (/[",\r\n]/.test(normalized)) {
     return `"${normalized.replaceAll('"', '""')}"`;
