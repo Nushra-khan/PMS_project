@@ -25,8 +25,10 @@
 | 🎯 | **Goals with roll-up** | Draft, submit, approve, update and archive goals. Company → team → individual goals roll their weighted progress upward. |
 | ⏱️ | **Approval escalations** | Goals pending approval escalate to Admin after the configured number of business days. |
 | 🌱 | **Probation tracking** | Day 30 / 60 / 80 checkpoints with paired employee and manager feedback. Deadlines skip weekends and recorded leave. |
-| 📝 | **Review cycles** | Bi-annual and quarterly cycles with self reviews, manager reviews, discussions and final ratings. |
-| 🚩 | **Feedback flags** | Low scores and blank answers raise flags automatically. Flags with no Admin action in 7 days escalate to the secondary Admin. |
+| 📝 | **Review cycles** | Bi-annual and quarterly cycles are scheduled, opened and enrolled automatically, with reminders on the 5th, 15th and 22nd day and Admin escalation. Self reviews, manager reviews, discussions and final ratings. |
+| 👥 | **People admin** | Admin grants roles, sets managers, teams and review tracks, and deactivates leavers. |
+| 📈 | **Trends** | Six-month charts of feedback scores and flags, plus a My performance / My team switch for managers. |
+| 🚩 | **Feedback flags** | Low scores, blank answers and negative language raise flags automatically. Flags with no Admin action in 7 days escalate to the secondary Admin. |
 | 📊 | **Reports and CSV export** | Goals, reviews, probation, flags and audit data, scoped to what each role may see. Exports are safe from spreadsheet formula injection. |
 | 🔔 | **Notifications** | In-app notices plus email through Resend or any SMTP server, delivered by an hourly worker. |
 | 🧾 | **Audit trail** | Every workflow action is logged with who did it and when. |
@@ -44,7 +46,7 @@ flowchart LR
 ```
 
 - **Pages and server actions** call `lib/db/*`, which talks to Postgres directly through `pg`.
-- **Automation** (probation reminders, goal and flag escalations, email delivery) runs from `/api/cron/automation`, which `vercel.json` schedules every hour.
+- **Automation** (probation reminders, review cycles and reminders, goal and flag escalations, email delivery) runs from `/api/cron/automation`, which `vercel.json` schedules every hour.
 - **Errors are visible.** If the database is configured but unreachable, the app shows an error page instead of empty screens.
 
 ## 🚀 Quick start
@@ -108,7 +110,7 @@ To turn RLS on:
 ```bash
 npm run typecheck   # TypeScript
 npm run lint        # ESLint
-npm test            # unit tests: CSV escaping, working days, goal roll-up
+npm test            # unit tests: CSV, working days, roll-up, review schedule, sentiment
 ```
 
 Database tests run against a disposable Postgres. Each page read and each user action is run with RLS off and then on, and both runs must return the same result. The tests also check that the database refuses self-promotion, edits to other people's goals and spoofed audit entries.
@@ -124,14 +126,16 @@ GitHub Actions runs all of these on every pull request.
 
 ```text
 app/
-  (public)/login        sign in and sign up
+  (public)/login        sign in, sign up, forgot password
+  (public)/reset-password  choose a new password from an email link
+  auth/callback         exchanges email link codes for a session
   (app)/dashboard       role-aware home
   (app)/goals           goals, approvals, new goal form
   (app)/probation       probation checkpoints and decisions
   (app)/reviews         review cycles and submissions
   (app)/flags           feedback flags
   (app)/reports         reports and CSV exports
-  (app)/admin           settings, cycles, probation admin
+  (app)/admin           people, settings, cycles, probation admin
   api/cron/automation   hourly automation worker
 components/             app shell and UI building blocks
 lib/
@@ -139,6 +143,8 @@ lib/
   db/                   Postgres queries, workflows, RLS helpers
   dates/                leave-aware working-day math
   goals/                goal roll-up
+  reviews/              review cycle calendar and reminder rules
+  feedback/             negative-sentiment check
   email/                Resend and SMTP delivery
 supabase/
   migrations/           schema, RLS policies
@@ -155,8 +161,11 @@ tests/                  unit tests and database tests
 - [x] Flag auto-escalation after 7 days
 - [x] Company → team → individual goal roll-up
 - [x] Row-level security mode with tests
-- [ ] Admin people screen (roles and manager assignments)
-- [ ] Automatic review-cycle triggers and the 5th / 15th / 22nd reminder schedule
+- [x] Admin people screen (roles, managers, teams, active status)
+- [x] Automatic review cycles with 5th / 15th / 22nd reminders and Admin escalation
+- [x] Negative-sentiment flags on open-ended feedback
+- [x] My performance / My team dashboard toggle and six-month trend charts
+- [x] Forgot password and reset password
 - [ ] Weekly Admin digest
 - [ ] Admin offboarding and successor hand-over
 - [ ] Screenshots in this README
