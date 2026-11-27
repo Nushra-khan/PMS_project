@@ -4,23 +4,15 @@ import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
-import { Role } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type AuthMode = "sign_in" | "sign_up";
-
-const roleOptions: Array<{ value: Role; label: string }> = [
-  { value: "employee", label: "Employee" },
-  { value: "manager", label: "Manager" },
-  { value: "admin", label: "Admin (HR)" }
-];
 
 export function AuthPanel() {
   const router = useRouter();
   const supabase = createBrowserSupabaseClient();
   const [mode, setMode] = useState<AuthMode>("sign_in");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<Role>("employee");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -62,8 +54,7 @@ export function AuthPanel() {
       password,
       options: {
         data: {
-          full_name: fullName,
-          role
+          full_name: fullName
         }
       }
     });
@@ -131,33 +122,16 @@ export function AuthPanel() {
 
       <form className="mt-6 grid gap-4" onSubmit={handleSubmit}>
         {mode === "sign_up" ? (
-          <>
-            <label className="grid gap-2 text-sm font-medium text-ink">
-              Full name
-              <input
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
-                placeholder="Your full name"
-                required
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-medium text-ink">
-              Role
-              <select
-                value={role}
-                onChange={(event) => setRole(event.target.value as Role)}
-                className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
-              >
-                {roleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
+          <label className="grid gap-2 text-sm font-medium text-ink">
+            Full name
+            <input
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              className="rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none"
+              placeholder="Your full name"
+              required
+            />
+          </label>
         ) : null}
 
         <label className="grid gap-2 text-sm font-medium text-ink">
