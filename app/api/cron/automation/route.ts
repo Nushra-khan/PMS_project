@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { runAutomationWorker } from "@/lib/db/automation";
@@ -16,6 +17,12 @@ function getBearerToken(request: NextRequest) {
   return request.headers.get("x-cron-secret") ?? "";
 }
 
+function secretsMatch(provided: string, expected: string) {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 function authorizeCronRequest(request: NextRequest) {
   if (!env.cronSecret) {
     return {
@@ -25,7 +32,7 @@ function authorizeCronRequest(request: NextRequest) {
     };
   }
 
-  if (getBearerToken(request) !== env.cronSecret) {
+  if (!secretsMatch(getBearerToken(request), env.cronSecret)) {
     return {
       ok: false,
       status: 401,
