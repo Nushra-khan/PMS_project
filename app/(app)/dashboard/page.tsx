@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AppShell } from "@/components/app-shell";
 import { DataTable } from "@/components/data-table";
 import { SectionCard } from "@/components/section-card";
@@ -5,11 +7,15 @@ import { StatCard } from "@/components/stat-card";
 import { StatusBadge } from "@/components/status-badge";
 import { requireSession } from "@/lib/auth/session";
 import { getDashboardPageData } from "@/lib/db/dashboard";
-import { formatDateTime } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams
+}: {
+  searchParams?: { view?: string };
+}) {
   const session = await requireSession();
-  const dashboard = await getDashboardPageData(session);
+  const dashboard = await getDashboardPageData(session, searchParams?.view);
 
   return (
     <AppShell
@@ -17,6 +23,30 @@ export default async function DashboardPage() {
       title="Live performance operations"
       description="One role-aware cockpit for live goal health, probation compliance, review readiness, flagged responses, and auditable operational work."
     >
+      {session.role === "manager" ? (
+        <nav
+          aria-label="Dashboard view"
+          className="inline-flex w-fit rounded-full border border-ink/10 bg-white p-1"
+        >
+          {[
+            { view: "me", label: "My performance" },
+            { view: "team", label: "My team" }
+          ].map((option) => (
+            <Link
+              key={option.view}
+              href={`/dashboard?view=${option.view}`}
+              aria-current={dashboard.view === option.view ? "page" : undefined}
+              className={cn(
+                "rounded-full px-4 py-2 text-sm transition",
+                dashboard.view === option.view ? "bg-ink text-white" : "text-ink/70 hover:text-ink"
+              )}
+            >
+              {option.label}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {dashboard.stats.map((stat) => (
           <StatCard
@@ -47,7 +77,7 @@ export default async function DashboardPage() {
                   <p className="font-medium text-ink">{goal.title}</p>
                   <p className="text-xs text-ink/55">{goal.summary}</p>
                 </div>,
-                session.role === "employee" ? "Me" : goal.ownerName,
+                goal.ownerProfileId === session.userId ? "Me" : goal.ownerName,
                 <StatusBadge key={`${goal.id}-status`} value={goal.status} />,
                 `${goal.completionPct}%`,
                 String(goal.daysLeft)
