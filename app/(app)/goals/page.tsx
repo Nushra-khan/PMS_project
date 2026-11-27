@@ -27,7 +27,7 @@ export default async function GoalsPage({
   searchParams?: { status?: string; message?: string };
 }) {
   const session = await requireSession();
-  const { goals, updates } = await getGoalPageData(session);
+  const { goals, updates, rollups } = await getGoalPageData(session);
   const ownerOptions = await getGoalOwnerOptions(session);
   const status = searchParams?.status;
   const message = searchParams?.message;
@@ -118,7 +118,16 @@ export default async function GoalsPage({
               <StatusBadge key={`${goal.id}-status`} value={goal.status} />,
               `${goal.weightage}%`,
               formatDate(goal.dueDate),
-              `${goal.completionPct}%`
+              <div key={`${goal.id}-progress`}>
+                <p>{goal.completionPct}%</p>
+                {rollups[goal.id] ? (
+                  <p className="text-xs text-ink/55">
+                    Roll-up {rollups[goal.id].completionPct}% from{" "}
+                    {rollups[goal.id].childCount} linked goal
+                    {rollups[goal.id].childCount === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+              </div>
             ])}
           />
         )}
