@@ -6,6 +6,7 @@ import { runAsSystem, toNumber } from "@/lib/db/helpers";
 import { getDbClient, getDbPool } from "@/lib/db/pool";
 import { runFlagEscalations } from "@/lib/db/flag-escalations";
 import { runGoalApprovalEscalations } from "@/lib/db/goals";
+import { ReviewAutomationResult, runReviewCycleAutomation } from "@/lib/db/review-automation";
 import { syncProbationAutomation } from "@/lib/db/probation";
 
 const MAX_EMAIL_RETRIES = 3;
@@ -34,6 +35,7 @@ export type AutomationRunResult = {
   probationAutomation: "completed" | "skipped";
   goalEscalations: "completed" | "skipped";
   flagsEscalated: number;
+  reviewCycles: ReviewAutomationResult;
   deliveries: NotificationDeliveryResult;
 };
 
@@ -276,6 +278,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
       probationAutomation: "skipped",
       goalEscalations: "skipped",
       flagsEscalated: 0,
+      reviewCycles: { cyclesCreated: 0, cyclesActivated: 0, enrolled: 0, remindersSent: 0 },
       deliveries: {
         provider: "not_configured",
         inAppMarkedSent: 0,
@@ -296,6 +299,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
       probationAutomation: "skipped",
       goalEscalations: "skipped",
       flagsEscalated: 0,
+      reviewCycles: { cyclesCreated: 0, cyclesActivated: 0, enrolled: 0, remindersSent: 0 },
       deliveries: {
         provider: "not_configured",
         inAppMarkedSent: 0,
@@ -311,6 +315,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
   await syncProbationAutomation();
   await runGoalApprovalEscalations();
   const flagsEscalated = await runFlagEscalations();
+  const reviewCycles = await runReviewCycleAutomation();
   const deliveries = await processNotificationDeliveries();
 
   return {
@@ -320,6 +325,7 @@ export async function runAutomationWorker(): Promise<AutomationRunResult> {
     probationAutomation: "completed",
     goalEscalations: "completed",
     flagsEscalated,
+    reviewCycles,
     deliveries
   };
 }
