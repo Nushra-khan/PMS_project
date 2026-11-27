@@ -24,11 +24,11 @@ function roleLabel(role: Role) {
   return "Employee";
 }
 
+// Only app_metadata is trusted: it can be set by the service role, never by the
+// user. user_metadata is writable by the signed-in user via supabase.auth.updateUser,
+// so reading a role from it would let anyone promote themselves to admin.
 function roleFromUser(user: User): Role {
-  const metadataRole =
-    user.user_metadata.role ??
-    user.app_metadata.role ??
-    user.user_metadata.preview_role;
+  const metadataRole = user.app_metadata?.role;
 
   if (isRole(metadataRole)) {
     return metadataRole;
