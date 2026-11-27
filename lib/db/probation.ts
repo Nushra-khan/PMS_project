@@ -3,6 +3,7 @@ import { PoolClient } from "pg";
 
 import { addWorkingDays, WorkingDayLeavePeriod } from "@/lib/dates/working-days";
 import { runAsSystem, runWithClient, toDateOnly, toDateString } from "@/lib/db/helpers";
+import { withSystemRole } from "@/lib/db/user-context";
 import {
   insertAuditLog,
   maybeCreateFeedbackFlags,
@@ -1414,25 +1415,29 @@ export async function submitProbationFeedback(
 
   const requestDueDate = checkpoint.revisedDueDate ?? checkpoint.dueDate;
 
-  await ensureFeedbackRequest(client, {
-    requestKind: "employee",
-    targetProfileId: checkpoint.profileId,
-    reviewerProfileId: checkpoint.profileId,
-    relatedCheckpointId: input.checkpointId,
-    dueDate: requestDueDate,
-    status: actorKind === "employee" ? "submitted" : "in_progress"
-  });
-
-  if (checkpoint.managerProfileId) {
+  // Request rows track both parties' progress on the checkpoint, so the
+  // workflow updates them as a system record once permission is checked above.
+  await withSystemRole(client, async () => {
     await ensureFeedbackRequest(client, {
-      requestKind: "manager",
+      requestKind: "employee",
       targetProfileId: checkpoint.profileId,
-      reviewerProfileId: checkpoint.managerProfileId,
+      reviewerProfileId: checkpoint.profileId,
       relatedCheckpointId: input.checkpointId,
       dueDate: requestDueDate,
-      status: actorKind === "manager" ? "submitted" : "in_progress"
+      status: actorKind === "employee" ? "submitted" : "in_progress"
     });
-  }
+
+    if (checkpoint.managerProfileId) {
+      await ensureFeedbackRequest(client, {
+        requestKind: "manager",
+        targetProfileId: checkpoint.profileId,
+        reviewerProfileId: checkpoint.managerProfileId,
+        relatedCheckpointId: input.checkpointId,
+        dueDate: requestDueDate,
+        status: actorKind === "manager" ? "submitted" : "in_progress"
+      });
+    }
+  });
 
   const requestLabel = `${checkpoint.formTitle} ${
     actorKind === "employee" ? "self-feedback" : "manager feedback"
