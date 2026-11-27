@@ -36,9 +36,24 @@ export type GoalPageData = {
   rollups: Record<string, GoalRollup>;
 };
 
+export type ParentGoalOption = {
+  id: string;
+  title: string;
+  scope: Goal["scope"];
+  ownerName: string;
+};
+
 export type GoalComposerData = {
   myGoals: GoalRecord[];
   committedWeightage: number;
+  /** Company and team goals a new goal can be linked under. */
+  parentOptions: ParentGoalOption[];
+};
+
+const GOAL_SCOPE_RANK: Record<Goal["scope"], number> = {
+  individual: 0,
+  team: 1,
+  company: 2
 };
 
 export type GoalApprovalPageData = {
@@ -778,9 +793,58 @@ export async function getGoalPageData(session: AppSession): Promise<GoalPageData
   return { ...data, rollups: await getGoalRollups(data.goals.map((goal) => goal.id)) };
 }
 
+/**
+ * Goals a user may link a new goal under: any company goal, plus team goals
+ * they own, their manager owns, or (for Admin) any team goal. Read as system
+ * because an employee cannot otherwise open their manager's team goal; only
+ * ids, titles and owner names are returned.
+ */
+async function queryParentGoalOptions(client: PoolClient, session: AppSession, goalId?: string) {
+  const result = await client.query<{
+    id: string;
+    title: string;
+    scope: Goal["scope"];
+    owner_name: string;
+  }>(
+    `
+      select goals.id, goals.title, goals.scope, owner.full_name as owner_name
+      from public.goals goals
+      join public.profiles owner on owner.id = goals.owner_profile_id
+      where goals.status not in ('archived', 'draft')
+        and ($3::uuid is null or goals.id = $3)
+        and (
+          goals.scope = 'company'
+          or (
+            goals.scope = 'team'
+            and (
+              $2::boolean
+              or goals.owner_profile_id = $1
+              or goals.owner_profile_id in (
+                select manager_profile_id
+                from public.manager_assignments
+                where employee_profile_id = $1
+                  and is_primary = true
+                  and (effective_to is null or effective_to >= current_date)
+              )
+            )
+          )
+        )
+      order by goals.scope asc, goals.title asc
+    `,
+    [session.userId, session.role === "admin", goalId ?? null]
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    scope: row.scope,
+    ownerName: row.owner_name
+  })) satisfies ParentGoalOption[];
+}
+
 export async function getGoalComposerData(session: AppSession): Promise<GoalComposerData> {
-  return runWithClient(
-    { myGoals: [], committedWeightage: 0 },
+  const data = await runWithClient(
+    { myGoals: [] as GoalRecord[], committedWeightage: 0 },
     async (client) => {
       const goals = await getAccessibleGoalRows(client, session);
       const myGoals = goals.filter(
@@ -793,6 +857,11 @@ export async function getGoalComposerData(session: AppSession): Promise<GoalComp
       return { myGoals, committedWeightage };
     }
   );
+  const parentOptions = await runAsSystem<ParentGoalOption[]>([], (client) =>
+    queryParentGoalOptions(client, session)
+  );
+
+  return { ...data, parentOptions };
 }
 
 export async function getGoalApprovalPageData(
@@ -838,10 +907,25 @@ export async function createGoalRecord(
     weightage: number;
     dueDate: string;
     intent: "draft" | "submit" | "activate";
+    parentGoalId?: string;
   }
 ) {
   const cycleId = await getCurrentCycleId(client);
   const normalizedScope = normalizeScope(session.role, input.scope);
+
+  if (input.parentGoalId) {
+    const [parent] = await withSystemRole(client, () =>
+      queryParentGoalOptions(client, session, input.parentGoalId)
+    );
+
+    if (!parent) {
+      throw new Error("You cannot link a goal under that parent goal.");
+    }
+
+    if (GOAL_SCOPE_RANK[parent.scope] <= GOAL_SCOPE_RANK[normalizedScope]) {
+      throw new Error("A goal can only be linked under a broader goal (company over team, team over individual).");
+    }
+  }
   const status =
     input.intent === "draft"
       ? "draft"
@@ -876,9 +960,10 @@ export async function createGoalRecord(
         created_by,
         approved_by,
         approved_at,
-        due_date
+        due_date,
+        parent_goal_id
       )
-      values ($1, $2, $3, $4, $5, $6, 0, $7, $3, $8, $9, $10)
+      values ($1, $2, $3, $4, $5, $6, 0, $7, $3, $8, $9, $10, $11)
       returning id
     `,
     [
@@ -891,7 +976,8 @@ export async function createGoalRecord(
       cycleId,
       status === "active" ? session.userId : null,
       status === "active" ? new Date() : null,
-      input.dueDate
+      input.dueDate,
+      input.parentGoalId ?? null
     ]
   );
 
