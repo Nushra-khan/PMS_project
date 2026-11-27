@@ -1,20 +1,22 @@
 # PMS Pro
 
-PMS Pro is a unified performance and goal management platform built around three roles: `employee`, `manager`, and `admin`. The current implementation pass establishes the P0 foundation from the project goal and implementation plan:
+PMS Pro is a performance and goal management platform built around three roles: `employee`, `manager`, and `admin` (HR). It is a Next.js 14 App Router app backed by Supabase Auth and Postgres.
+
+Features:
 
 - role-aware dashboards
-- seeded goal management flows
-- probation monitoring
-- review cycle visibility
-- feedback flag review surfaces
-- Admin settings and operational controls
-- Supabase schema and seed data for the core PMS model
+- goal drafting, approval, updates and escalations
+- probation checkpoints (Day 30/60/80) with leave-aware working-day deadlines
+- review cycles
+- feedback flags
+- CSV report exports
+- Admin settings and a background automation worker
 
 ## Current state
 
-The UI currently reads from seeded in-app demo data so the routes and workflow surfaces are usable immediately.
+All screens read and write live data in Postgres through server-side queries (`lib/db/`). If the database is configured but unreachable, the app shows an error page rather than empty data.
 
-In parallel, the repository now includes a Supabase schema and SQL seed so the app can be switched to live reads incrementally without redesigning the data model.
+New sign-ups always start as `employee`. Roles are granted by an Admin in the `user_roles` table (or via Supabase `app_metadata.role`); the sign-up form does not let users pick a role.
 
 ## Run the app
 
@@ -24,13 +26,10 @@ In parallel, the repository now includes a Supabase schema and SQL seed so the a
 npm install
 ```
 
-2. Make sure your local `.env` contains:
+2. Copy `.env.example` to `.env.local` and fill in your values. `.env` and `.env.local` are git-ignored; never commit real secrets.
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-DATABASE_URL=
-APP_URL=http://localhost:3000
+cp .env.example .env.local
 ```
 
 3. Start the development server:
@@ -50,7 +49,7 @@ GET /api/cron/automation
 Authorization: Bearer $CRON_SECRET
 ```
 
-This worker runs probation checkpoint/reminder/escalation automation, goal approval escalations, in-app notification delivery, and queued email delivery. Set `CRON_SECRET` in `.env`, then call the endpoint from your scheduler, such as Vercel Cron, GitHub Actions, Windows Task Scheduler, or any uptime/cron service.
+This worker runs probation checkpoint/reminder/escalation automation, goal approval escalations, in-app notification delivery, and queued email delivery. Set `CRON_SECRET` in `.env.local`, then call the endpoint from your scheduler, such as Vercel Cron, GitHub Actions, Windows Task Scheduler, or any uptime/cron service.
 
 Email delivery uses `RESEND_API_KEY` + `EMAIL_FROM` when configured, otherwise it falls back to the SMTP settings in `.env.example`. If no email provider is configured, email deliveries stay queued instead of failing silently.
 
@@ -89,20 +88,24 @@ npm run db:verify-data
 
 The verifier checks teams, active profiles, role coverage, manager assignments, app settings, review cycles, cycle enrollments, probation cases, and probation checkpoints.
 
+## Checks
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+```
+
+The same checks run in GitHub Actions on every pull request (`.github/workflows/ci.yml`).
+
 ## Structure
 
 - `app/` route-based UI using the Next.js App Router
 - `components/` reusable app shell and display primitives
-- `lib/auth/` role/session helpers
+- `lib/auth/` session and role helpers
+- `lib/db/` live Postgres queries and workflow writes
 - `lib/dates/` working-day utilities
-- `lib/workflows/` route-facing workflow selectors
+- `lib/email/` Resend and SMTP delivery
 - `supabase/migrations/` schema and RLS setup
 - `supabase/seed.sql` pseudo data for immediate testing
-
-## Next implementation steps
-
-- replace seeded UI reads with live Supabase queries
-- wire server actions for goal draft, submit, approve, and reject
-- attach feedback request generation and reminder scheduling
-- add real Supabase Auth session handling on top of the current role demo entry flow
-- connect audit logging to live writes
+- `tests/` unit tests
