@@ -1,6 +1,8 @@
 import { PoolClient } from "pg";
 
+import { getCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getDbPool } from "@/lib/db/pool";
+import { applyUserContext, isRlsEnforced } from "@/lib/db/user-context";
 
 const DB_RETRY_BACKOFF_MS = 15_000;
 
@@ -21,13 +23,10 @@ function isProductionBuildPhase() {
   return process.env.NEXT_PHASE === "phase-production-build";
 }
 
-/**
- * Runs a database task. `fallback` is only returned when no database is
- * configured (local preview) or during `next build`. When a database is
- * configured but unreachable or a query fails, the error is thrown so the
- * page shows an error state instead of silently rendering empty data.
- */
-export async function runWithClient<T>(
+type RunMode = "user" | "system";
+
+async function runTask<T>(
+  mode: RunMode,
   fallback: T,
   task: (client: PoolClient) => Promise<T>
 ) {
@@ -45,6 +44,7 @@ export async function runWithClient<T>(
     throw new DatabaseUnavailableError();
   }
 
+  const authUserId = mode === "user" && isRlsEnforced() ? await getCurrentAuthUserId() : null;
   let client: PoolClient;
 
   try {
@@ -56,14 +56,58 @@ export async function runWithClient<T>(
     throw new DatabaseUnavailableError();
   }
 
+  const scoped = mode === "user" && isRlsEnforced();
+
   try {
-    return await task(client);
+    if (!scoped) {
+      return await task(client);
+    }
+
+    await client.query("begin");
+
+    try {
+      await applyUserContext(client, authUserId);
+      const result = await task(client);
+      await client.query("commit");
+      return result;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
   } catch (error) {
     console.error(`[database] query failed: ${describeError(error)}`);
     throw error;
   } finally {
     client.release();
   }
+}
+
+/**
+ * Runs a database task for the signed-in user. With DB_ENFORCE_RLS=true it
+ * runs as Supabase's `authenticated` role, so row-level security applies.
+ *
+ * `fallback` is only returned when no database is configured (local preview)
+ * or during `next build`. When a database is configured but unreachable or a
+ * query fails, the error is thrown so the page shows an error state instead
+ * of silently rendering empty data.
+ */
+export async function runWithClient<T>(
+  fallback: T,
+  task: (client: PoolClient) => Promise<T>
+) {
+  return runTask("user", fallback, task);
+}
+
+/**
+ * Runs trusted background work (cron automation, escalations, email
+ * delivery) with the connection's own privileges. Never use it for data
+ * that is shown to or changed on behalf of a user.
+ */
+export async function runAsSystem<T>(
+  fallback: T,
+  task: (client: PoolClient) => Promise<T>
+) {
+  return runTask("system", fallback, task);
 }
 
 export async function getDirectReportIds(client: PoolClient, managerProfileId: string) {
